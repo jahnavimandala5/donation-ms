@@ -1,0 +1,86 @@
+:root {
+  --primary: #2E7D32;
+  --primary-light: #4CAF50;
+  --primary-dark: #1B5E20;
+  --secondary: #FF9800;
+  --secondary-light: #FFB74D;
+  --accent: #4CAF50;
+  --danger: #E53935;
+  --warning: #FF9800;
+  --info: #0288D1;
+  --success: #2E7D32;
+  --light: #F8FAFC;
+  --dark: #1E293B;
+  --ink: #334155;
+  --muted: #64748B;
+  --line: rgba(100, 116, 139, 0.18);
+
+  --bg-body: #F8FAFC;
+  --bg-section: #FFFFFF;
+  --bg-tinted: #F1F5F9;
+  --bg-hero-top: #0B3D2E;
+  --bg-hero-bottom: #0E5C44;
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --card-border: rgba(255, 255, 255, 0.55);
+  --glass-blur: 18px;
+  --text-main: #0F172A;
+  --text-body: #334155;
+  --text-soft: #64748B;
+  --text-invert: #FFFFFF;
+  --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 10px 30px -8px rgba(15, 23, 42, 0.16);
+  --shadow-lg: 0 24px 60px -12px rgba(15, 23, 42, 0.28);
+  --shadow-glow: 0 10px 34px -6px rgba(46, 125, 50, 0.45);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --font-family: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-scale: 1;
+  --max-width: 1240px;
+  --nav-height: 72px;
+  --transition: 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --primary-gradient: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  --accent-gradient: linear-gradient(135deg, var(--secondary), #F57C00);
+  --brand-gradient: linear-gradient(135deg, #4CAF50, #2E7D32 55%, #1B5E20);
+  --glass-bg: var(--card-bg);
+  --glass-border: var(--card-border);
+  --color-scheme: light;
+  --scrollbar-thumb: rgba(46, 125, 50, 0.4);
+  --scrollbar-track: transparent;
+}
+
+html[data-theme="dark"] {
+  --bg-body: #0B1220;
+  --bg-section: #0F172A;
+  --bg-tinted: #111C2E;
+  --bg-hero-top: #071F16;
+  --bg-hero-bottom: #0E3B2A;
+  --card-bg: rgba(15, 23, 42, 0.6);
+  --card-border: rgba(148, 163, 184, 0.16);
+  --text-main: #F1F5F9;
+  --text-body: #CBD5E1;
+  --text-soft: #94A3B8;
+  --text-invert: #0F172A;
+  --line: rgba(148, 163, 184, 0.16);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 10px 34px -6px rgba(76, 175, 80, 0.35);
+  --color-scheme: dark;
+  --scrollbar-thumb: rgba(76, 175, 80, 0.35);
+}
+
+html[data-glass="solid"] {
+  --card-bg: #FFFFFF;
+  --card-border: var(--line);
+}
+
+html[data-theme="dark"][data-glass="solid"] {
+  --card-bg: #111C2E;
+  --card-border: rgba(148, 163, 184, 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --transition: 0.01s linear; }
+}

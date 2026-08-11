@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+server/.env
+
+# Logs
+*.log
+server-out.log
+server-err.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.idea/
+.vscode/

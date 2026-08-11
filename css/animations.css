@@ -1,0 +1,54 @@
+/* =====================================================================
+   FoodLink - animations.css
+   ===================================================================== */
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes floatY { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-20px) rotate(4deg); } }
+@keyframes blobFloat { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(30px, -24px) scale(1.1); } }
+@keyframes loadBar { to { width: 100%; } }
+@keyframes scrollHint { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(12px); opacity: 0; } 100% { transform: translateY(0); opacity: 0; } }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zoomIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes toastIn { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateX(60px); } }
+@keyframes popIn { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes floatUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes ringPing { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); } 100% { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); } }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* ---------- Scroll reveal ---------- */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(34px);
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+  transition-delay: var(--reveal-delay, 0s);
+  will-change: opacity, transform;
+}
+[data-reveal="fade-in"] { transform: none; }
+[data-reveal="slide-left"] { transform: translateX(46px); }
+[data-reveal="slide-right"] { transform: translateX(-46px); }
+[data-reveal="zoom-in"] { transform: scale(0.9); }
+[data-reveal].revealed { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* ---------- Micro-interactions ---------- */
+.btn-primary, .btn-accent, .btn-light { background-size: 160% 160%; animation: gradientMove 8s ease infinite; }
+.ripple { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.5); transform: scale(0); animation: rippleAnim 0.65s linear; pointer-events: none; }
+@keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+
+.card-shine { position: relative; overflow: hidden; }
+.card-shine::after {
+  content: ""; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg); transition: left 0.6s var(--ease);
+}
+.card-shine:hover::after { left: 130%; }
+[data-theme="dark"] .card-shine::after { background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.08), transparent); }
