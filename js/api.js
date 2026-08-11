@@ -8,7 +8,15 @@ window.FoodLink = window.FoodLink || {};
 (function () {
   "use strict";
 
-  var BASE = "/api";
+  var API_ORIGIN = (function () {
+    if (window.FoodLink && window.FoodLink.API_ORIGIN) return window.FoodLink.API_ORIGIN;
+    var host = location.hostname;
+    if (host === "localhost" || host === "127.0.0.1" || location.protocol === "file:") {
+      return "http://localhost:4000";
+    }
+    return "https://donation-ms-58do.onrender.com";
+  })();
+  var BASE = API_ORIGIN + "/api";
 
   function j(method, path, body) {
     return fetch(BASE + path, {
