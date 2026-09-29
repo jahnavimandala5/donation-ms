@@ -51,18 +51,18 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
         <a href="index.html" class="brand" aria-label="FoodLink home">
-          <span class="brand-mark"><svg class="icon"><use href="#i-logo"/></svg></span>
+          <span class="brand-mark"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logo"/></svg></span>
           <span class="brand-name">Food<span>Link</span></span>
         </a>
       </div>
       <nav class="side-nav" aria-label="Receiver navigation">
-        <button class="side-item active" data-section="overview" type="button"><svg class="icon"><use href="#i-home"/></svg> Overview</button>
-        <button class="side-item" data-section="browse" type="button"><svg class="icon"><use href="#i-search"/></svg> Browse Food</button>
-        <button class="side-item" data-section="reservations" type="button"><svg class="icon"><use href="#i-clipboard"/></svg> My Reservations</button>
-        <button class="side-item" data-section="favorites" type="button"><svg class="icon"><use href="#i-heart"/></svg> Favorites</button>
-        <button class="side-item" data-section="requests" type="button"><svg class="icon"><use href="#i-alert"/></svg> My Requests</button>
-        <button class="side-item" data-section="rewards" type="button"><svg class="icon"><use href="#i-award"/></svg> Rewards</button>
-        <button class="side-item" data-section="profile" type="button"><svg class="icon"><use href="#i-settings"/></svg> Profile</button>
+        <button class="side-item active" data-section="overview" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-home"/></svg> Overview</button>
+        <button class="side-item" data-section="browse" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-search"/></svg> Browse Food</button>
+        <button class="side-item" data-section="reservations" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-clipboard"/></svg> My Reservations</button>
+        <button class="side-item" data-section="favorites" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-heart"/></svg> Favorites</button>
+        <button class="side-item" data-section="requests" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-alert"/></svg> My Requests</button>
+        <button class="side-item" data-section="rewards" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-award"/></svg> Rewards</button>
+        <button class="side-item" data-section="profile" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-settings"/></svg> Profile</button>
       </nav>
       <div class="sidebar-user">
         <span class="avatar sidebar-avatar">U</span>
@@ -70,21 +70,21 @@
           <div class="sidebar-user-name">User</div>
           <div class="sidebar-user-role">Receiver</div>
         </div>
-        <button class="sidebar-logout" data-logout type="button" title="Logout"><svg class="icon"><use href="#i-logout"/></svg></button>
+        <button class="sidebar-logout" data-logout type="button" title="Logout"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logout"/></svg></button>
       </div>
     </aside>
 
     <div class="dash-main">
       <header class="topbar">
-        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-menu"/></svg></button>
         <h1 id="pageTitle">Overview</h1>
         <div class="topbar-right">
           <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle dark mode">
-            <svg class="icon icon-sun"><use href="#i-sun"/></svg>
-            <svg class="icon icon-moon"><use href="#i-moon"/></svg>
+            <svg class="icon icon-sun"  aria-hidden="true" focusable="false"><use href="#i-sun"/></svg>
+            <svg class="icon icon-moon"  aria-hidden="true" focusable="false"><use href="#i-moon"/></svg>
           </button>
           <div class="dropdown" style="position:relative">
-            <button class="icon-btn" id="notifBell" type="button" aria-label="Notifications"><svg class="icon"><use href="#i-bell"/></svg><span class="side-count" id="notifCount" style="position:absolute;top:4px;right:4px" hidden>0</span></button>
+            <button class="icon-btn" id="notifBell" type="button" aria-label="Notifications"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-bell"/></svg><span class="side-count" id="notifCount" style="position:absolute;top:4px;right:4px" hidden>0</span></button>
             <div class="dropdown-panel notif-drop" id="notifDrop">
               <div class="dropdown-head">Notifications <button class="btn btn-ghost btn-sm" id="markAllRead" type="button" style="float:right">Mark all read</button></div>
               <div class="notif-list" id="notifList"></div>
@@ -94,8 +94,8 @@
             <button class="icon-btn" id="userAvatarBtn" type="button" aria-label="Account menu"><span class="avatar sm" id="topAvatar">U</span></button>
             <div class="dropdown-panel" id="userDrop">
               <div class="dropdown-head" id="dropUserName">User</div>
-              <button class="dropdown-item" data-go="index" type="button"><svg class="icon"><use href="#i-home"/></svg> Home</button>
-              <button class="dropdown-item danger" data-logout type="button"><svg class="icon"><use href="#i-logout"/></svg> Logout</button>
+              <button class="dropdown-item" data-go="index" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-home"/></svg> Home</button>
+              <button class="dropdown-item danger" data-logout type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logout"/></svg> Logout</button>
             </div>
           </div>
         </div>
@@ -124,7 +124,7 @@
         <section class="content-section" id="sec-browse">
           <div class="page-head"><div><h2>Browse available food</h2><p>Donations listed by restaurants, hotels and homes near you.</p></div></div>
           <div class="toolbar">
-            <div class="search-box"><svg class="icon"><use href="#i-search"/></svg><input type="text" id="browseSearch" placeholder="Search food, city…"></div>
+            <div class="search-box"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-search"/></svg><input type="text" id="browseSearch" placeholder="Search food, city…"></div>
             <div class="filter-bar" id="browseChips"></div>
             <select id="browseSort" class="sort-select"><option value="expiry">Expiring soonest</option><option value="newest">Newest first</option><option value="quantity">Largest quantity</option><option value="servings">Most servings</option></select>
           </div>
@@ -145,19 +145,19 @@
         <section class="content-section" id="sec-requests">
           <div class="page-head"><div><h2>Request food</h2><p>Tell donors exactly what your community needs.</p></div></div>
           <form id="requestForm" class="form-card glass" novalidate style="max-width:760px;margin-bottom:30px">
-            <div class="form-field"><label>What food do you need? <span class="req">*</span></label><input type="text" name="foodRequired" placeholder="e.g. Rice or Biryani for 150 people" data-rule="text"><small class="field-msg"></small></div>
+            <div class="form-field"><label for="f-rcv-foodrequired">What food do you need? <span class="req">*</span></label><input type="text" name="foodRequired" placeholder="e.g. Rice or Biryani for 150 people" data-rule="text" id="f-rcv-foodrequired"><small class="field-msg"></small></div>
             <div class="form-row">
-              <div class="form-field"><label>Quantity <span class="req">*</span></label><input type="text" name="quantity" placeholder="e.g. 10 kg" data-rule="text"><small class="field-msg"></small></div>
-              <div class="form-field"><label>People to serve <span class="req">*</span></label><input type="number" name="peopleCount" min="1" placeholder="e.g. 150" data-rule="number"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-rcv-quantity">Quantity <span class="req">*</span></label><input type="text" name="quantity" placeholder="e.g. 10 kg" data-rule="text" id="f-rcv-quantity"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-rcv-peoplecount">People to serve <span class="req">*</span></label><input type="number" name="peopleCount" min="1" placeholder="e.g. 150" data-rule="number" id="f-rcv-peoplecount"><small class="field-msg"></small></div>
             </div>
-            <div class="form-field"><label>Urgency</label>
-              <select name="urgency">
+            <div class="form-field"><label for="f-rcv-urgency">Urgency</label>
+              <select name="urgency" id="f-rcv-urgency">
                 <option value="Immediate">Immediate</option>
                 <option value="Today">Today</option>
                 <option value="Tomorrow">Tomorrow</option>
               </select>
             </div>
-            <div class="form-field"><label>Description</label><textarea name="description" rows="3" placeholder="When do you need it? Any dietary constraints?"></textarea></div>
+            <div class="form-field"><label for="f-rcv-description">Description</label><textarea name="description" rows="3" placeholder="When do you need it? Any dietary constraints?" id="f-rcv-description"></textarea></div>
             <button type="submit" class="btn btn-primary btn-lg">Post request</button>
           </form>
           <h3 style="margin-bottom:16px">My open requests</h3>

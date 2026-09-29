@@ -82,7 +82,7 @@
 
   <div id="preloader" aria-hidden="true">
     <div class="loader-logo">
-      <svg class="loader-ring" viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="180" stroke-linecap="round"/></svg>
+      <svg class="loader-ring" viewBox="0 0 80 80"  aria-hidden="true" focusable="false"><circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="180" stroke-linecap="round"/></svg>
       <span class="loader-leaf">🌿</span>
     </div>
     <p class="loader-text">Food<span>Link</span></p>
@@ -93,7 +93,7 @@
   <header class="navbar" id="navbar">
     <div class="container navbar-inner">
       <a href="#" class="brand" aria-label="FoodLink home">
-        <span class="brand-mark"><svg class="icon"><use href="#i-logo"/></svg></span>
+        <span class="brand-mark"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logo"/></svg></span>
         <span class="brand-name">Food<span>Link</span></span>
       </a>
       <nav class="nav-links" id="navLinks" aria-label="Primary navigation">
@@ -114,11 +114,11 @@
       </nav>
       <div class="nav-actions">
         <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle dark mode">
-          <svg class="icon icon-sun"><use href="#i-sun"/></svg>
-          <svg class="icon icon-moon"><use href="#i-moon"/></svg>
+          <svg class="icon icon-sun"  aria-hidden="true" focusable="false"><use href="#i-sun"/></svg>
+          <svg class="icon icon-moon"  aria-hidden="true" focusable="false"><use href="#i-moon"/></svg>
         </button>
         <button class="icon-btn hamburger" id="hamburger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
-          <svg class="icon"><use href="#i-menu"/></svg>
+          <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-menu"/></svg>
         </button>
       </div>
     </div>
@@ -144,7 +144,7 @@
       <div class="container hero-inner">
         <div class="hero-copy">
           <div class="hero-badge glass">
-            <svg class="icon"><use href="#i-leaf"/></svg>
+            <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-leaf"/></svg>
             <span>Smart Food Waste Exchange Platform</span>
           </div>
           <h1 class="hero-title">
@@ -154,11 +154,11 @@
           <p class="hero-sub">FoodLink connects restaurants, hotels, households and NGOs so surplus food reaches people in need — before it reaches the landfill.</p>
           <div class="hero-cta">
             <a href="#" class="btn btn-primary btn-lg" data-open-register="donor">
-              <svg class="icon"><use href="#i-leaf"/></svg>
+              <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-leaf"/></svg>
               <span>Donate Food</span>
             </a>
             <a href="#browse" class="btn btn-glass btn-lg">
-              <svg class="icon"><use href="#i-search"/></svg>
+              <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-search"/></svg>
               <span>Find Food</span>
             </a>
           </div>
@@ -218,13 +218,13 @@
             <h3>Donate Surplus</h3>
             <p>Restaurants, hotels and households list extra, perfectly good food in under two minutes.</p>
           </div>
-          <div class="step-arrow" data-reveal="fade-in"><svg class="icon"><use href="#i-arrow-right"/></svg></div>
+          <div class="step-arrow" data-reveal="fade-in"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></div>
           <div class="step-card glass card-shine" data-reveal="fade-up" style="--reveal-delay:.15s">
             <span class="step-num">02</span><span class="step-emoji">🤝</span>
             <h3>NGOs Reserve</h3>
             <p>NGOs, orphanages and shelters near the pickup point reserve the food instantly.</p>
           </div>
-          <div class="step-arrow" data-reveal="fade-in" style="--reveal-delay:.25s"><svg class="icon"><use href="#i-arrow-right"/></svg></div>
+          <div class="step-arrow" data-reveal="fade-in" style="--reveal-delay:.25s"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></div>
           <div class="step-card glass card-shine" data-reveal="fade-up" style="--reveal-delay:.3s">
             <span class="step-num">03</span><span class="step-emoji">🍱</span>
             <h3>Serve the Community</h3>
@@ -242,12 +242,12 @@
           <p class="section-desc">Premium tools that turn everyday surplus into community impact.</p>
         </div>
         <div class="features-grid">
-          <div class="feature-card" data-reveal="fade-up"><div class="feature-icon"><svg class="icon"><use href="#i-zap"/></svg></div><h3>Live freshness countdowns</h3><p>Every listing shows a real-time expiry countdown so food is always safe and fresh.</p></div>
-          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.08s"><div class="feature-icon"><svg class="icon"><use href="#i-map-pin"/></svg></div><h3>Hyperlocal matching</h3><p>Donations surface to NGOs nearest to the pickup point first.</p></div>
-          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.16s"><div class="feature-icon"><svg class="icon"><use href="#i-award"/></svg></div><h3>Green Points rewards</h3><p>Earn coins and badges for every meal rescued. Level up from Bronze to Diamond.</p></div>
-          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.24s"><div class="feature-icon"><svg class="icon"><use href="#i-shield"/></svg></div><h3>Verified partners</h3><p>Every NGO, restaurant and receiver is verified by admins before going live.</p></div>
-          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.32s"><div class="feature-icon"><svg class="icon"><use href="#i-chart"/></svg></div><h3>Impact dashboard</h3><p>Track meals saved, carbon avoided and people helped with live analytics.</p></div>
-          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.4s"><div class="feature-icon"><svg class="icon"><use href="#i-globe"/></svg></div><h3>Built for scale</h3><p>Architected for a future Node.js + Express + MongoDB backend.</p></div>
+          <div class="feature-card" data-reveal="fade-up"><div class="feature-icon"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-zap"/></svg></div><h3>Live freshness countdowns</h3><p>Every listing shows a real-time expiry countdown so food is always safe and fresh.</p></div>
+          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.08s"><div class="feature-icon"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-map-pin"/></svg></div><h3>Hyperlocal matching</h3><p>Donations surface to NGOs nearest to the pickup point first.</p></div>
+          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.16s"><div class="feature-icon"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-award"/></svg></div><h3>Green Points rewards</h3><p>Earn coins and badges for every meal rescued. Level up from Bronze to Diamond.</p></div>
+          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.24s"><div class="feature-icon"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-shield"/></svg></div><h3>Verified partners</h3><p>Every NGO, restaurant and receiver is verified by admins before going live.</p></div>
+          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.32s"><div class="feature-icon"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-chart"/></svg></div><h3>Impact dashboard</h3><p>Track meals saved, carbon avoided and people helped with live analytics.</p></div>
+          <div class="feature-card" data-reveal="fade-up" style="--reveal-delay:.4s"><div class="feature-icon"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-globe"/></svg></div><h3>Built for scale</h3><p>Architected for a future Node.js + Express + MongoDB backend.</p></div>
         </div>
       </div>
     </section>
@@ -262,21 +262,21 @@
           <div class="panel" data-reveal="slide-right">
             <h3 class="section-title" style="font-size:22px">🍛 Donors</h3>
             <ul class="check-list">
-              <li><svg class="icon"><use href="#i-check"/></svg> Restaurants, Hotels, Cafes &amp; Bakeries</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Catering services &amp; event organizers</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Grocery stores, supermarkets &amp; markets</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Corporate offices, hostels, colleges &amp; schools</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Households &amp; individuals</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Restaurants, Hotels, Cafes &amp; Bakeries</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Catering services &amp; event organizers</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Grocery stores, supermarkets &amp; markets</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Corporate offices, hostels, colleges &amp; schools</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Households &amp; individuals</li>
             </ul>
           </div>
           <div class="panel" data-reveal="slide-left">
             <h3 class="section-title" style="font-size:22px">🤲 Receivers</h3>
             <ul class="check-list">
-              <li><svg class="icon"><use href="#i-check"/></svg> NGOs, charitable trusts &amp; community kitchens</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Orphanages &amp; old age homes</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Homeless shelters &amp; government shelters</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Animal shelters (for suitable food)</li>
-              <li><svg class="icon"><use href="#i-check"/></svg> Students &amp; individuals in need</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> NGOs, charitable trusts &amp; community kitchens</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Orphanages &amp; old age homes</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Homeless shelters &amp; government shelters</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Animal shelters (for suitable food)</li>
+              <li><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-check"/></svg> Students &amp; individuals in need</li>
             </ul>
           </div>
         </div>
@@ -294,7 +294,7 @@
         <div class="section-cta" data-reveal="fade-up">
           <a href="#" class="btn btn-outline" data-open-register="receiver">
             Browse &amp; reserve food
-            <svg class="icon"><use href="#i-arrow-right"/></svg>
+            <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg>
           </a>
         </div>
       </div>
@@ -362,19 +362,19 @@
         </div>
         <div class="contact-wrap">
           <div data-reveal="slide-right">
-            <div class="contact-info-item"><span class="icon-wrap"><svg class="icon"><use href="#i-mail"/></svg></span><div><h4>Email us</h4><p>hello@foodlink.app</p></div></div>
-            <div class="contact-info-item"><span class="icon-wrap"><svg class="icon"><use href="#i-phone"/></svg></span><div><h4>Call support</h4><p>+91 98765 43210 · Mon–Sat, 9am–7pm</p></div></div>
-            <div class="contact-info-item"><span class="icon-wrap" style="background:linear-gradient(135deg,#ef4444,#dc2626)"><svg class="icon"><use href="#i-alert"/></svg></span><div><h4>Emergency food need</h4><p>+91 90000 10000 · 24×7 hotline</p></div></div>
-            <div class="contact-info-item"><span class="icon-wrap"><svg class="icon"><use href="#i-map-pin"/></svg></span><div><h4>Office</h4><p>10, Cyber Hub, Gurugram, Haryana 122002</p></div></div>
+            <div class="contact-info-item"><span class="icon-wrap"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-mail"/></svg></span><div><h4>Email us</h4><p>hello@foodlink.app</p></div></div>
+            <div class="contact-info-item"><span class="icon-wrap"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-phone"/></svg></span><div><h4>Call support</h4><p>+91 98765 43210 · Mon–Sat, 9am–7pm</p></div></div>
+            <div class="contact-info-item"><span class="icon-wrap" style="background:linear-gradient(135deg,#ef4444,#dc2626)"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-alert"/></svg></span><div><h4>Emergency food need</h4><p>+91 90000 10000 · 24×7 hotline</p></div></div>
+            <div class="contact-info-item"><span class="icon-wrap"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-map-pin"/></svg></span><div><h4>Office</h4><p>10, Cyber Hub, Gurugram, Haryana 122002</p></div></div>
           </div>
           <form id="contactForm" class="form-card glass" novalidate data-reveal="slide-left">
             <div class="form-row">
-              <div class="form-field"><label>Name <span class="req">*</span></label><input type="text" name="name" placeholder="Your name" data-rule="text"><small class="field-msg"></small></div>
-              <div class="form-field"><label>Email <span class="req">*</span></label><input type="email" name="email" placeholder="you@example.com" data-rule="email"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-idx-name">Name <span class="req">*</span></label><input type="text" name="name" placeholder="Your name" data-rule="text" id="f-idx-name"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-idx-email">Email <span class="req">*</span></label><input type="email" name="email" placeholder="you@example.com" data-rule="email" id="f-idx-email"><small class="field-msg"></small></div>
             </div>
-            <div class="form-field"><label>Subject</label><input type="text" name="subject" placeholder="How can we help?"></div>
-            <div class="form-field"><label>Message <span class="req">*</span></label><textarea name="message" rows="4" placeholder="Tell us more…" data-rule="text"></textarea><small class="field-msg"></small></div>
-            <button type="submit" class="btn btn-primary btn-block">Send message <svg class="icon"><use href="#i-send"/></svg></button>
+            <div class="form-field"><label for="f-idx-subject">Subject</label><input type="text" name="subject" placeholder="How can we help?" id="f-idx-subject"></div>
+            <div class="form-field"><label for="f-idx-message">Message <span class="req">*</span></label><textarea name="message" rows="4" placeholder="Tell us more…" data-rule="text" id="f-idx-message"></textarea><small class="field-msg"></small></div>
+            <button type="submit" class="btn btn-primary btn-block">Send message <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-send"/></svg></button>
           </form>
         </div>
 
@@ -384,23 +384,23 @@
         </div>
         <div class="faq-list" data-reveal="fade-up">
           <div class="faq-item open">
-            <button class="faq-q" type="button">Is donated food safe to consume? <svg class="icon"><use href="#i-chevron-down"/></svg></button>
+            <button class="faq-q" type="button">Is donated food safe to consume? <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-chevron-down"/></svg></button>
             <div class="faq-a"><p>Yes. Every donation shows preparation time and a live expiry countdown. All donors are verified by our admin team and are expected to follow strict hygiene standards.</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button">Who can donate food? <svg class="icon"><use href="#i-chevron-down"/></svg></button>
+            <button class="faq-q" type="button">Who can donate food? <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-chevron-down"/></svg></button>
             <div class="faq-a"><p>Restaurants, hotels, cafes, bakeries, caterers, grocery stores, corporate offices, hostels, colleges, schools and even households or individuals with surplus food.</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button">How do receivers reserve food? <svg class="icon"><use href="#i-chevron-down"/></svg></button>
+            <button class="faq-q" type="button">How do receivers reserve food? <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-chevron-down"/></svg></button>
             <div class="faq-a"><p>Log in as a Receiver, browse available food, and tap Reserve on any listing. The donor is notified instantly and the status moves through Reserved → Collected → Completed.</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button">What are Green Points? <svg class="icon"><use href="#i-chevron-down"/></svg></button>
+            <button class="faq-q" type="button">What are Green Points? <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-chevron-down"/></svg></button>
             <div class="faq-a"><p>Green Points reward every successful donation or collection. Earn points to unlock Bronze, Silver, Gold and Diamond badges plus downloadable certificates.</p></div>
           </div>
           <div class="faq-item">
-            <button class="faq-q" type="button">Is FoodLink free to use? <svg class="icon"><use href="#i-chevron-down"/></svg></button>
+            <button class="faq-q" type="button">Is FoodLink free to use? <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-chevron-down"/></svg></button>
             <div class="faq-a"><p>Completely free. FoodLink is a non-profit platform funded by partners and grants.</p></div>
           </div>
         </div>
@@ -412,14 +412,14 @@
     <div class="container">
       <div class="footer-grid">
         <div class="footer-about">
-          <a href="#" class="brand"><span class="brand-mark"><svg class="icon"><use href="#i-logo"/></svg></span><span class="brand-name">Food<span>Link</span></span></a>
+          <a href="#" class="brand"><span class="brand-mark"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logo"/></svg></span><span class="brand-name">Food<span>Link</span></span></a>
           <p>Save Food · Feed People · Reduce Waste. A community platform connecting food donors with NGOs, orphanages, shelters and people in need.</p>
           <div class="social-row">
-            <a href="#" aria-label="Facebook"><svg class="icon"><use href="#i-facebook"/></svg></a>
-            <a href="#" aria-label="Twitter"><svg class="icon"><use href="#i-twitter"/></svg></a>
-            <a href="#" aria-label="Instagram"><svg class="icon"><use href="#i-instagram"/></svg></a>
-            <a href="#" aria-label="LinkedIn"><svg class="icon"><use href="#i-linkedin"/></svg></a>
-            <a href="#" aria-label="YouTube"><svg class="icon"><use href="#i-youtube"/></svg></a>
+            <a href="#" aria-label="Facebook"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-facebook"/></svg></a>
+            <a href="#" aria-label="Twitter"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-twitter"/></svg></a>
+            <a href="#" aria-label="Instagram"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-instagram"/></svg></a>
+            <a href="#" aria-label="LinkedIn"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-linkedin"/></svg></a>
+            <a href="#" aria-label="YouTube"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-youtube"/></svg></a>
           </div>
         </div>
         <div>
@@ -459,7 +459,7 @@
     </div>
   </footer>
 
-  <button id="backToTop" aria-label="Back to top"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
+  <button id="backToTop" aria-label="Back to top"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-arrow-up"/></svg></button>
   <div id="toastContainer"></div>
 
   <script src="js/api.js"></script>
