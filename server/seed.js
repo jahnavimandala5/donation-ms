@@ -6,6 +6,7 @@
 
 const { connect } = require("./db");
 const models = require("./models");
+const auth = require("./auth");
 
 const HOUR = 3600000;
 const DAY = 86400000;
@@ -15,17 +16,24 @@ const daysAgo = (d) => Date.now() - d * DAY;
 function buildData() {
   const now = Date.now();
 
+  // Demo credentials are hashed at seed time so the database never holds a
+  // plaintext password. The known logins stay:
+  //   admin@foodlink.app / admin123
+  //   <any seeded donor>   / donor123
+  //   <any seeded receiver>/ receiver123
+  const H = (p) => auth.hashPassword(p);
+
   const users = [
-    { id: "u_admin", role: "admin", name: "Aarav Mehta", email: "admin@foodlink.app", phone: "9000000001", password: "admin123", orgName: "FoodLink HQ", city: "Delhi", state: "Delhi", address: "10 Cyber Hub, Gurugram", pincode: "122002", description: "Platform administrator", status: "approved", verified: true, points: 0, badges: [], joinedAt: daysAgo(220), avatar: null },
-    { id: "u_d1", role: "donor", name: "Rahul Sharma", email: "rahul@foodlink.app", phone: "9810000011", password: "donor123", orgName: "Spice Garden", type: "Restaurant", city: "Delhi", state: "Delhi", address: "21, Hauz Khas Village", pincode: "110016", description: "North Indian family restaurant, 80 seats", status: "approved", verified: true, points: 340, badges: ["bronze", "silver", "gold"], joinedAt: daysAgo(180), avatar: null },
-    { id: "u_d2", role: "donor", name: "Priya Verma", email: "priya@foodlink.app", phone: "9810000022", password: "donor123", orgName: "Grand Palace Hotel", type: "Hotel", city: "Mumbai", state: "Maharashtra", address: "45, Linking Road, Bandra West", pincode: "400050", description: "Full service hotel with buffet banquets", status: "approved", verified: true, points: 210, badges: ["bronze", "silver"], joinedAt: daysAgo(150), avatar: null },
-    { id: "u_d3", role: "donor", name: "Amit Patel", email: "amit@foodlink.app", phone: "9810000033", password: "donor123", orgName: "Brew & Beans", type: "Cafe", city: "Bengaluru", state: "Karnataka", address: "88, Indiranagar 100 Ft Road", pincode: "560038", description: "Specialty coffee cafe with bakery section", status: "approved", verified: true, points: 90, badges: ["bronze"], joinedAt: daysAgo(90), avatar: null },
-    { id: "u_d4", role: "donor", name: "Sunita Rao", email: "sunita@foodlink.app", phone: "9810000044", password: "donor123", orgName: "Sunita Rao", type: "Household", city: "Pune", state: "Maharashtra", address: "33, FC Road, Shivajinagar", pincode: "411005", description: "Home cook, surplus from family functions", status: "approved", verified: true, points: 60, badges: ["bronze"], joinedAt: daysAgo(40), avatar: null },
-    { id: "u_d5", role: "donor", name: "Karan Malhotra", email: "karan@foodlink.app", phone: "9810000055", password: "donor123", orgName: "Sweet Symphony Bakery", type: "Bakery", city: "Kolkata", state: "West Bengal", address: "12, Park Street", pincode: "700016", description: "Bakery, cakes and breads", status: "pending", verified: false, points: 0, badges: [], joinedAt: daysAgo(2), avatar: null },
-    { id: "u_r1", role: "receiver", name: "Neha Gupta", email: "neha@foodlink.app", phone: "9811000011", password: "receiver123", orgName: "Feed the Future", type: "NGO", city: "Delhi", state: "Delhi", address: "14, Lajpat Nagar II", pincode: "110024", description: "Community kitchen serving 400 meals a day", status: "approved", verified: true, points: 180, badges: ["bronze", "silver"], joinedAt: daysAgo(170), avatar: null },
-    { id: "u_r2", role: "receiver", name: "Fr. Joseph D'Souza", email: "joseph@foodlink.app", phone: "9811000022", password: "receiver123", orgName: "Hope Home", type: "Orphanage", city: "Mumbai", state: "Maharashtra", address: "8, Dharavi Main Road", pincode: "400017", description: "Home for 60 children, needs 3 meals daily", status: "approved", verified: true, points: 120, badges: ["bronze", "silver"], joinedAt: daysAgo(160), avatar: null },
-    { id: "u_r3", role: "receiver", name: "Meera Iyer", email: "meera@foodlink.app", phone: "9811000033", password: "receiver123", orgName: "Snehashray", type: "Old Age Home", city: "Bengaluru", state: "Karnataka", address: "22, Jayanagar 4th Block", pincode: "560011", description: "Shelter for 45 senior citizens", status: "approved", verified: true, points: 90, badges: ["bronze"], joinedAt: daysAgo(120), avatar: null },
-    { id: "u_r4", role: "receiver", name: "Asha Deshmukh", email: "asha@foodlink.app", phone: "9811000044", password: "receiver123", orgName: "Anna Seva Kitchen", type: "Community Kitchen", city: "Pune", state: "Maharashtra", address: "5, Shivaji Nagar", pincode: "411005", description: "Daily free kitchen for students and workers", status: "pending", verified: false, points: 0, badges: [], joinedAt: daysAgo(1), avatar: null }
+    { id: "u_admin", role: "admin", name: "Aarav Mehta", email: "admin@foodlink.app", phone: "9000000001", password: H("admin123"), orgName: "FoodLink HQ", city: "Delhi", state: "Delhi", address: "10 Cyber Hub, Gurugram", pincode: "122002", description: "Platform administrator", status: "approved", verified: true, points: 0, badges: [], joinedAt: daysAgo(220), avatar: null },
+    { id: "u_d1", role: "donor", name: "Rahul Sharma", email: "rahul@foodlink.app", phone: "9810000011", password: H("donor123"), orgName: "Spice Garden", type: "Restaurant", city: "Delhi", state: "Delhi", address: "21, Hauz Khas Village", pincode: "110016", description: "North Indian family restaurant, 80 seats", status: "approved", verified: true, points: 340, badges: ["bronze", "silver", "gold"], joinedAt: daysAgo(180), avatar: null },
+    { id: "u_d2", role: "donor", name: "Priya Verma", email: "priya@foodlink.app", phone: "9810000022", password: H("donor123"), orgName: "Grand Palace Hotel", type: "Hotel", city: "Mumbai", state: "Maharashtra", address: "45, Linking Road, Bandra West", pincode: "400050", description: "Full service hotel with buffet banquets", status: "approved", verified: true, points: 210, badges: ["bronze", "silver"], joinedAt: daysAgo(150), avatar: null },
+    { id: "u_d3", role: "donor", name: "Amit Patel", email: "amit@foodlink.app", phone: "9810000033", password: H("donor123"), orgName: "Brew & Beans", type: "Cafe", city: "Bengaluru", state: "Karnataka", address: "88, Indiranagar 100 Ft Road", pincode: "560038", description: "Specialty coffee cafe with bakery section", status: "approved", verified: true, points: 90, badges: ["bronze"], joinedAt: daysAgo(90), avatar: null },
+    { id: "u_d4", role: "donor", name: "Sunita Rao", email: "sunita@foodlink.app", phone: "9810000044", password: H("donor123"), orgName: "Sunita Rao", type: "Household", city: "Pune", state: "Maharashtra", address: "33, FC Road, Shivajinagar", pincode: "411005", description: "Home cook, surplus from family functions", status: "approved", verified: true, points: 60, badges: ["bronze"], joinedAt: daysAgo(40), avatar: null },
+    { id: "u_d5", role: "donor", name: "Karan Malhotra", email: "karan@foodlink.app", phone: "9810000055", password: H("donor123"), orgName: "Sweet Symphony Bakery", type: "Bakery", city: "Kolkata", state: "West Bengal", address: "12, Park Street", pincode: "700016", description: "Bakery, cakes and breads", status: "pending", verified: false, points: 0, badges: [], joinedAt: daysAgo(2), avatar: null },
+    { id: "u_r1", role: "receiver", name: "Neha Gupta", email: "neha@foodlink.app", phone: "9811000011", password: H("receiver123"), orgName: "Feed the Future", type: "NGO", city: "Delhi", state: "Delhi", address: "14, Lajpat Nagar II", pincode: "110024", description: "Community kitchen serving 400 meals a day", status: "approved", verified: true, points: 180, badges: ["bronze", "silver"], joinedAt: daysAgo(170), avatar: null },
+    { id: "u_r2", role: "receiver", name: "Fr. Joseph D'Souza", email: "joseph@foodlink.app", phone: "9811000022", password: H("receiver123"), orgName: "Hope Home", type: "Orphanage", city: "Mumbai", state: "Maharashtra", address: "8, Dharavi Main Road", pincode: "400017", description: "Home for 60 children, needs 3 meals daily", status: "approved", verified: true, points: 120, badges: ["bronze", "silver"], joinedAt: daysAgo(160), avatar: null },
+    { id: "u_r3", role: "receiver", name: "Meera Iyer", email: "meera@foodlink.app", phone: "9811000033", password: H("receiver123"), orgName: "Snehashray", type: "Old Age Home", city: "Bengaluru", state: "Karnataka", address: "22, Jayanagar 4th Block", pincode: "560011", description: "Shelter for 45 senior citizens", status: "approved", verified: true, points: 90, badges: ["bronze"], joinedAt: daysAgo(120), avatar: null },
+    { id: "u_r4", role: "receiver", name: "Asha Deshmukh", email: "asha@foodlink.app", phone: "9811000044", password: H("receiver123"), orgName: "Anna Seva Kitchen", type: "Community Kitchen", city: "Pune", state: "Maharashtra", address: "5, Shivaji Nagar", pincode: "411005", description: "Daily free kitchen for students and workers", status: "pending", verified: false, points: 0, badges: [], joinedAt: daysAgo(1), avatar: null }
   ];
 
   const donations = [
@@ -133,6 +141,9 @@ async function seed(force) {
 }
 
 module.exports = function seedIfEmpty() { return seed(false); };
+// Exposed so repair scripts can reuse the canonical demo records instead of
+// duplicating them.
+module.exports.buildData = buildData;
 
 if (require.main === module) {
   const force = process.argv.indexOf("--force") !== -1;

@@ -102,7 +102,18 @@
       UI.runCounters();
     }
 
-    var week = list.slice(0, 7).reduce(function (s, d) { return s + (d.servings || 0); }, 0);
+    // "This week" must mean the current calendar week, not the first seven
+    // records in the array.
+    var nowTs = Date.now();
+    var weekStart = (function () {
+      var d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      return d.getTime();
+    })();
+    var week = list.filter(function (d) {
+      return Number(d.createdAt) >= weekStart && Number(d.createdAt) <= nowTs;
+    }).reduce(function (s, d) { return s + (Number(d.servings) || 0); }, 0);
     var lastWeek = 0;
     var lineEl = document.getElementById("donorLineChart");
     if (lineEl) {
@@ -397,10 +408,23 @@
         "</div>" +
         '<div class="form-field"><label>Pickup time</label><input type="text" name="pickupTime" value="' + esc(d.pickupTime || "") + '" data-rule="text"><small class="field-msg"></small></div>' +
         '<div class="form-field"><label>Safe to consume for</label><select name="expiresIn" data-rule="select">' +
-          [1, 2, 3, 4, 6, 8, 12, 24].map(function (h) {
-            var cur = d.expiresAt ? Math.max(1, Math.round((d.expiresAt - Date.now()) / 3600000)) : 1;
-            return '<option value="' + h + '"' + (h === cur ? " selected" : "") + ">" + h + " hours</option>";
-          }).join("") +
+          // `cur` was recomputed inside the loop and never constrained to
+          // the option set, so a remaining time of 5 or 30 hours matched
+          // nothing and the browser silently selected "1 hour", collapsing
+          // the deadline on save. Snap to the nearest offered value.
+          (function () {
+            var HOURS = [1, 2, 3, 4, 6, 8, 12, 24];
+            var cur = d.expiresAt ? Math.round((d.expiresAt - Date.now()) / 3600000) : 1;
+            if (cur < HOURS[0]) cur = HOURS[0];
+            if (cur > HOURS[HOURS.length - 1]) cur = HOURS[HOURS.length - 1];
+            var best = HOURS[0];
+            for (var i = 0; i < HOURS.length; i++) {
+              if (Math.abs(HOURS[i] - cur) < Math.abs(best - cur)) best = HOURS[i];
+            }
+            return HOURS.map(function (h) {
+              return '<option value="' + h + '"' + (h === best ? " selected" : "") + ">" + h + " hours</option>";
+            }).join("");
+          })() +
         "</select><small class='field-msg'></small></div>" +
         '<div class="form-row">' +
           '<div class="form-field"><label>City</label><input type="text" name="city" value="' + esc(d.city || "") + '" data-rule="text"><small class="field-msg"></small></div>' +
@@ -485,10 +509,13 @@
         "<p><strong>Contact:</strong> " + esc(receiver.name || "—") + "</p>" +
         "<p><strong>Phone:</strong> " + esc(receiver.phone || "—") + "</p>" +
         "<p><strong>Email:</strong> " + esc(receiver.email || "—") + "</p>" +
-        "<p><strong>Address:</strong> " + esc(receiver.address + ", " + receiver.city || "—") + "</p>" +
+        "<p><strong>Address:</strong> " + esc([receiver.address, receiver.city].filter(Boolean).join(", ") || "—") + "</p>" +
       "</div>" +
-      '<div class="form-actions"><button class="btn btn-ghost" data-close>Close</button></div>',
-      { onOpen: function (m) { m.querySelector("[data-close]").addEventListener("click", Modal.close); } }
+      '<div class="form-actions"><button class="btn btn-ghost" type="button" data-close>Close</button></div>',
+      { size: "md", label: "Request details", onOpen: function (m) {
+          var closeBtn = m.querySelector("[data-close]");
+          if (closeBtn) closeBtn.addEventListener("click", Modal.close);
+        } }
     );
   }
 
@@ -552,23 +579,26 @@
       e.preventDefault();
       if (!V.validateForm(form)) { UI.toast("Check the form", "Fix the highlighted fields and try again.", "error"); return; }
       var f = new FormData(form);
-      S.Users.update(user.id, {
+      // `email` and `updatedAt` are deliberately absent: the server decides
+      // who may change what, and it rejects fields outside its whitelist.
+      S.updateMyProfile({
         orgName: f.get("orgName"),
         name: f.get("name"),
         phone: f.get("phone"),
-        email: f.get("email").trim().toLowerCase(),
         type: f.get("type"),
         city: f.get("city"),
         state: f.get("state"),
         pincode: f.get("pincode"),
         address: f.get("address"),
-        description: f.get("description"),
-        updatedAt: Date.now()
+        description: f.get("description")
+      }).then(function () {
+        user = S.currentUser();
+        refreshShellUser();
+        Shell.initNotifications();
+        UI.toast("Profile updated", "Your details have been saved.", "success");
+      })["catch"](function (err) {
+        UI.toast("Could not save", (err && err.message) || "Your profile was not updated. Try again.", "error");
       });
-      user = S.currentUser();
-      refreshShellUser();
-      Shell.initNotifications();
-      UI.toast("Profile updated", "Your details have been saved.", "success");
     });
   }
 

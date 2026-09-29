@@ -51,17 +51,17 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
         <a href="index.html" class="brand" aria-label="FoodLink home">
-          <span class="brand-mark"><svg class="icon"><use href="#i-logo"/></svg></span>
+          <span class="brand-mark"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logo"/></svg></span>
           <span class="brand-name">Food<span>Link</span></span>
         </a>
       </div>
       <nav class="side-nav" aria-label="Donor navigation">
-        <button class="side-item active" data-section="overview" type="button"><svg class="icon"><use href="#i-home"/></svg> Overview</button>
-        <button class="side-item" data-section="add" type="button"><svg class="icon"><use href="#i-plus"/></svg> Add Donation</button>
-        <button class="side-item" data-section="myDonations" type="button"><svg class="icon"><use href="#i-package"/></svg> My Donations</button>
-        <button class="side-item" data-section="requests" type="button"><svg class="icon"><use href="#i-heart"/></svg> Receiver Requests</button>
-        <button class="side-item" data-section="rewards" type="button"><svg class="icon"><use href="#i-award"/></svg> Rewards</button>
-        <button class="side-item" data-section="profile" type="button"><svg class="icon"><use href="#i-settings"/></svg> Profile</button>
+        <button class="side-item active" data-section="overview" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-home"/></svg> Overview</button>
+        <button class="side-item" data-section="add" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-plus"/></svg> Add Donation</button>
+        <button class="side-item" data-section="myDonations" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-package"/></svg> My Donations</button>
+        <button class="side-item" data-section="requests" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-heart"/></svg> Receiver Requests</button>
+        <button class="side-item" data-section="rewards" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-award"/></svg> Rewards</button>
+        <button class="side-item" data-section="profile" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-settings"/></svg> Profile</button>
       </nav>
       <div class="sidebar-user">
         <span class="avatar sidebar-avatar">U</span>
@@ -69,21 +69,21 @@
           <div class="sidebar-user-name">User</div>
           <div class="sidebar-user-role">Donor</div>
         </div>
-        <button class="sidebar-logout" data-logout type="button" title="Logout"><svg class="icon"><use href="#i-logout"/></svg></button>
+        <button class="sidebar-logout" data-logout type="button" title="Logout"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logout"/></svg></button>
       </div>
     </aside>
 
     <div class="dash-main">
       <header class="topbar">
-        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-menu"/></svg></button>
         <h1 id="pageTitle">Overview</h1>
         <div class="topbar-right">
           <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle dark mode">
-            <svg class="icon icon-sun"><use href="#i-sun"/></svg>
-            <svg class="icon icon-moon"><use href="#i-moon"/></svg>
+            <svg class="icon icon-sun"  aria-hidden="true" focusable="false"><use href="#i-sun"/></svg>
+            <svg class="icon icon-moon"  aria-hidden="true" focusable="false"><use href="#i-moon"/></svg>
           </button>
           <div class="dropdown" style="position:relative">
-            <button class="icon-btn" id="notifBell" type="button" aria-label="Notifications"><svg class="icon"><use href="#i-bell"/></svg><span class="side-count" id="notifCount" style="position:absolute;top:4px;right:4px" hidden>0</span></button>
+            <button class="icon-btn" id="notifBell" type="button" aria-label="Notifications"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-bell"/></svg><span class="side-count" id="notifCount" style="position:absolute;top:4px;right:4px" hidden>0</span></button>
             <div class="dropdown-panel notif-drop" id="notifDrop">
               <div class="dropdown-head">Notifications <button class="btn btn-ghost btn-sm" id="markAllRead" type="button" style="float:right">Mark all read</button></div>
               <div class="notif-list" id="notifList"></div>
@@ -93,8 +93,8 @@
             <button class="icon-btn" id="userAvatarBtn" type="button" aria-label="Account menu"><span class="avatar sm" id="topAvatar">U</span></button>
             <div class="dropdown-panel" id="userDrop">
               <div class="dropdown-head" id="dropUserName">User</div>
-              <button class="dropdown-item" data-go="index" type="button"><svg class="icon"><use href="#i-home"/></svg> Home</button>
-              <button class="dropdown-item danger" data-logout type="button"><svg class="icon"><use href="#i-logout"/></svg> Logout</button>
+              <button class="dropdown-item" data-go="index" type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-home"/></svg> Home</button>
+              <button class="dropdown-item danger" data-logout type="button"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-logout"/></svg> Logout</button>
             </div>
           </div>
         </div>
@@ -124,22 +124,22 @@
           <div class="page-head"><div><h2>List surplus food</h2><p>It takes under two minutes — every listing is a meal saved.</p></div></div>
           <form id="donationForm" class="form-card glass" novalidate style="max-width:860px">
             <div class="form-row">
-              <div class="form-field"><label>Food name <span class="req">*</span></label><input type="text" name="foodName" placeholder="e.g. Veg Biryani" data-rule="text"><small class="field-msg"></small></div>
-              <div class="form-field"><label>Category <span class="req">*</span></label>
+              <div class="form-field"><label for="f-don-foodname">Food name <span class="req">*</span></label><input type="text" name="foodName" placeholder="e.g. Veg Biryani" data-rule="text" id="f-don-foodname"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-don-category">Category <span class="req">*</span></label>
                 <div class="segmented" role="radiogroup" aria-label="Food category">
-                  <label class="seg-option"><input type="radio" name="category" value="veg" checked><span class="seg-label">🥬 Vegetarian</span></label>
+                  <label class="seg-option"><input type="radio" name="category" value="veg" checked id="f-don-category"><span class="seg-label">🥬 Vegetarian</span></label>
                   <label class="seg-option"><input type="radio" name="category" value="nonveg"><span class="seg-label">🍗 Non-veg</span></label>
                 </div>
               </div>
             </div>
             <div class="form-row">
-              <div class="form-field"><label>Quantity (kg) <span class="req">*</span></label><input type="number" name="quantity" min="0.1" step="0.1" placeholder="e.g. 6" data-rule="number"><small class="field-msg"></small></div>
-              <div class="form-field"><label>Servings <span class="req">*</span></label><input type="number" name="servings" min="1" placeholder="e.g. 30" data-rule="number"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-don-quantity">Quantity (kg) <span class="req">*</span></label><input type="number" name="quantity" min="0.1" step="0.1" placeholder="e.g. 6" data-rule="number" id="f-don-quantity"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-don-servings">Servings <span class="req">*</span></label><input type="number" name="servings" min="1" placeholder="e.g. 30" data-rule="number" id="f-don-servings"><small class="field-msg"></small></div>
             </div>
             <div class="form-row">
-              <div class="form-field"><label>Pickup time</label><input type="text" name="pickupTime" placeholder="e.g. 6:00 PM - 9:00 PM" data-rule="text"><small class="field-msg"></small></div>
-              <div class="form-field"><label>Safe to consume for <span class="req">*</span></label>
-                <select name="expiresIn" data-rule="select">
+              <div class="form-field"><label for="f-don-pickuptime">Pickup time</label><input type="text" name="pickupTime" placeholder="e.g. 6:00 PM - 9:00 PM" data-rule="text" id="f-don-pickuptime"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-don-expiresin">Safe to consume for <span class="req">*</span></label>
+                <select name="expiresIn" data-rule="select" id="f-don-expiresin">
                   <option value="1">1 hour</option>
                   <option value="2">2 hours</option>
                   <option value="3">3 hours</option>
@@ -153,19 +153,19 @@
               </div>
             </div>
             <div class="form-row">
-              <div class="form-field"><label>City <span class="req">*</span></label><input type="text" name="city" placeholder="e.g. Delhi" data-rule="text"><small class="field-msg"></small></div>
-              <div class="form-field"><label>State</label><input type="text" name="state" placeholder="e.g. Delhi" data-rule="text"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-don-city">City <span class="req">*</span></label><input type="text" name="city" placeholder="e.g. Delhi" data-rule="text" id="f-don-city"><small class="field-msg"></small></div>
+              <div class="form-field"><label for="f-don-state">State</label><input type="text" name="state" placeholder="e.g. Delhi" data-rule="text" id="f-don-state"><small class="field-msg"></small></div>
             </div>
-            <div class="form-field"><label>Pickup address <span class="req">*</span></label><textarea name="address" rows="2" placeholder="Street, building, landmark" data-rule="text"></textarea><small class="field-msg"></small></div>
-            <div class="form-field"><label>Description</label><textarea name="description" rows="3" placeholder="What's in it? Any allergens? How is it packed?"></textarea><small class="field-msg"></small></div>
-            <button type="submit" class="btn btn-primary btn-lg">List this food <svg class="icon"><use href="#i-leaf"/></svg></button>
+            <div class="form-field"><label for="f-don-address">Pickup address <span class="req">*</span></label><textarea name="address" rows="2" placeholder="Street, building, landmark" data-rule="text" id="f-don-address"></textarea><small class="field-msg"></small></div>
+            <div class="form-field"><label for="f-don-description">Description</label><textarea name="description" rows="3" placeholder="What's in it? Any allergens? How is it packed?" id="f-don-description"></textarea><small class="field-msg"></small></div>
+            <button type="submit" class="btn btn-primary btn-lg">List this food <svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-leaf"/></svg></button>
           </form>
         </section>
 
         <section class="content-section" id="sec-myDonations">
           <div class="page-head"><div><h2>My donations</h2><p>Manage your active and past listings.</p></div></div>
           <div class="toolbar">
-            <div class="search-box"><svg class="icon"><use href="#i-search"/></svg><input type="text" id="myDonSearch" placeholder="Search my donations…"></div>
+            <div class="search-box"><svg class="icon"  aria-hidden="true" focusable="false"><use href="#i-search"/></svg><input type="text" id="myDonSearch" placeholder="Search my donations…"></div>
             <div class="filter-bar" id="myDonChips"></div>
           </div>
           <div id="myDonList"></div>

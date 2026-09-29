@@ -308,23 +308,28 @@
       '<div class="modal-sub">' + esc(donor.orgName || donor.name) + " • " + esc(d.foodType || "") + "</div>" +
       '<div class="form-actions" style="justify-content:flex-start"><span class="pill ' + meta.cls + '">' + meta.label + "</span></div>" +
       '<div class="food-meta" style="margin:14px 0">' +
-        "<span>🍽️ " + d.servings + " servings</span><span>⚖️ " + d.quantity + " kg</span>" +
-        "<span>🕐 " + UI.formatDateTime(d.expiresAt) + "</span>" +
+        "<span>&#127869; " + UI.num(d.servings) + " servings</span><span>&#9878; " + UI.num(d.quantity) + " kg</span>" +
+        "<span>&#128340; " + esc(UI.formatDateTime(d.expiresAt)) + "</span>" +
       "</div>" +
       "<p class='modal-sub'>" + esc(d.description || "No description provided.") + "</p>" +
-      '<div class="food-meta" style="margin:14px 0"><span>📍 ' + esc(d.address + ", " + d.city + (d.state ? ", " + d.state : "")) + "</span></div>" +
+      '<div class="food-meta" style="margin:14px 0"><span>&#128205; ' + esc([d.address, d.city, d.state].filter(Boolean).join(", ") || "—") + "</span></div>" +
       '<div class="form-actions">' +
-        (S.donationStatus(d) === "available" ? '<button class="btn btn-primary" id="reserveBtn">Reserve this food</button>' : "") +
-        '<button class="btn btn-ghost" id="favBtn">' + (fav ? "❤️ Saved" : "🤍 Save") + "</button>" +
-        '<button class="btn btn-ghost" data-close>Close</button>' +
+        (S.donationStatus(d) === "available" ? '<button class="btn btn-primary" type="button" id="reserveBtn">Reserve this food</button>' : "") +
+        '<button class="btn btn-ghost" type="button" id="favBtn" aria-pressed="' + (fav ? "true" : "false") + '">' + (fav ? "Saved" : "Save") + "</button>" +
+        '<button class="btn btn-ghost" type="button" data-close>Close</button>' +
       "</div>",
-      { onOpen: function (m) {
-          m.querySelector("[data-close]").addEventListener("click", Modal.close);
+      { size: "md", label: d.foodName, onOpen: function (m) {
+          var closeBtn = m.querySelector("[data-close]");
+          if (closeBtn) closeBtn.addEventListener("click", Modal.close);
           var r = m.querySelector("#reserveBtn");
           if (r) r.addEventListener("click", function () { Modal.close(); reserveDonation(d.id); });
-          m.querySelector("#favBtn").addEventListener("click", function () {
-            S.toggleFavorite(user.id, d.id);
-            Modal.close();
+          var favBtn = m.querySelector("#favBtn");
+          // Previously the toggle gave no feedback at all from the modal.
+          if (favBtn) favBtn.addEventListener("click", function () {
+            var nowFav = S.toggleFavorite(user.id, d.id);
+            favBtn.setAttribute("aria-pressed", nowFav ? "true" : "false");
+            favBtn.textContent = nowFav ? "Saved" : "Save";
+            UI.toast(nowFav ? "Saved" : "Removed", nowFav ? "Added to your favourites." : "Removed from your favourites.", "info");
             renderBrowse();
             renderFavorites();
           });
@@ -540,23 +545,26 @@
       e.preventDefault();
       if (!V.validateForm(form)) { UI.toast("Check the form", "Fix the highlighted fields and try again.", "error"); return; }
       var f = new FormData(form);
-      S.Users.update(user.id, {
+      // Email changes go through a verification flow the server owns, so
+      // they are not part of a plain profile save.
+      S.updateMyProfile({
         orgName: f.get("orgName"),
         name: f.get("name"),
         phone: f.get("phone"),
-        email: f.get("email").trim().toLowerCase(),
         type: f.get("type"),
         city: f.get("city"),
         state: f.get("state"),
         pincode: f.get("pincode"),
         address: f.get("address"),
-        description: f.get("description"),
-        updatedAt: Date.now()
+        description: f.get("description")
+      }).then(function () {
+        user = S.currentUser();
+        refreshShellUser();
+        Shell.initNotifications();
+        UI.toast("Profile updated", "Your details have been saved.", "success");
+      })["catch"](function (err) {
+        UI.toast("Could not save", (err && err.message) || "Your profile was not updated. Try again.", "error");
       });
-      user = S.currentUser();
-      refreshShellUser();
-      Shell.initNotifications();
-      UI.toast("Profile updated", "Your details have been saved.", "success");
     });
   }
 

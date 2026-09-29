@@ -9,18 +9,24 @@ window.FoodLink = window.FoodLink || {};
   "use strict";
 
   var SORTS = {
-    newest: function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); },
-    expiry: function (a, b) { return (a.expiresAt || 0) - (b.expiresAt || 0); },
-    quantity: function (a, b) { return (b.quantity || 0) - (a.quantity || 0); },
-    servings: function (a, b) { return (b.servings || 0) - (a.servings || 0); }
+    newest: function (a, b) { return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0); },
+    expiry: function (a, b) { return (Number(a.expiresAt) || 0) - (Number(b.expiresAt) || 0); },
+    quantity: function (a, b) { return (Number(b.quantity) || 0) - (Number(a.quantity) || 0); },
+    servings: function (a, b) { return (Number(b.servings) || 0) - (Number(a.servings) || 0); }
   };
 
   function apply(list, opts) {
     opts = opts || {};
     var out = list.slice();
+    var S = window.FoodLink.Storage;
 
     if (opts.status) {
-      out = out.filter(function (d) { return (opts.status === d.status); });
+      // Compare against the *effective* status: an expired listing still
+      // carries status "available" in storage, so filtering on the raw
+      // field returned food nobody could safely eat.
+      out = out.filter(function (d) {
+        return S.donationStatus(d) === opts.status;
+      });
     }
 
     if (opts.veg === "veg") out = out.filter(function (d) { return d.category === "veg"; });
@@ -33,8 +39,8 @@ window.FoodLink = window.FoodLink || {};
     }
 
     if (opts.city) {
-      var c = opts.city.toLowerCase().trim();
-      if (c) out = out.filter(function (d) { return (d.city || "").toLowerCase().indexOf(c) !== -1; });
+      var c = String(opts.city).toLowerCase().trim();
+      if (c) out = out.filter(function (d) { return String(d.city || "").toLowerCase().indexOf(c) !== -1; });
     }
 
     if (opts.query) {

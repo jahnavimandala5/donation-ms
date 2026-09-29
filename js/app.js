@@ -6,10 +6,12 @@
 (function () {
   "use strict";
 
-  var S = window.FoodLink.Storage;
-  var UI = window.FoodLink.UI;
-  var Modal = window.FoodLink.Modal;
-  var V = window.FoodLink.Validation;
+var S = window.FoodLink.Storage;
+var UI = window.FoodLink.UI;
+var Modal = window.FoodLink.Modal;
+var V = window.FoodLink.Validation;
+var API = window.FoodLink.API;
+
 
   window.toast = function (t, m, ty) { UI.toast(t, m, ty); };
 
@@ -20,10 +22,7 @@
 
   function sharedInit() {
     UI.applyTheme();
-    var pre = document.getElementById("preloader");
-    if (pre) {
-      setTimeout(function () { pre.classList.add("done"); }, 500);
-    }
+    releasePreloader();
     var back = document.getElementById("backToTop");
     if (back) {
       window.addEventListener("scroll", function () {
@@ -46,12 +45,25 @@
     var hamburger = document.getElementById("hamburger");
     var navLinks = document.getElementById("navLinks");
     if (hamburger && navLinks) {
-      hamburger.addEventListener("click", function () {
-        navLinks.classList.toggle("open");
+      function setNav(open) {
+        navLinks.classList.toggle("open", open);
+        hamburger.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      hamburger.setAttribute("aria-controls", navLinks.id || "navLinks");
+      hamburger.setAttribute("aria-expanded", "false");
+      hamburger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setNav(!navLinks.classList.contains("open"));
       });
       document.addEventListener("click", function (e) {
         if (navLinks.classList.contains("open") && !navLinks.contains(e.target) && e.target !== hamburger) {
-          navLinks.classList.remove("open");
+          setNav(false);
+        }
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && navLinks.classList.contains("open")) {
+          setNav(false);
+          hamburger.focus();
         }
       });
     }
@@ -70,38 +82,81 @@
     if (S.currentUser()) updateNavUser();
   }
 
+  var revealObserver = null;
+
   function initReveal() {
-    var items = document.querySelectorAll("[data-reveal]");
+    var items = document.querySelectorAll("[data-reveal]:not(.revealed)");
     if (!("IntersectionObserver" in window)) {
-      items.forEach(function (el) { el.classList.add("revealed"); });
+      Array.prototype.forEach.call(items, function (el) { el.classList.add("revealed"); });
       return;
     }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (en.isIntersecting) { en.target.classList.add("revealed"); io.unobserve(en.target); }
-      });
-    }, { threshold: 0.12 });
-    items.forEach(function (el) { io.observe(el); });
+    // One shared observer. Creating a second over the same elements made
+    // every [data-reveal] node observed twice with no teardown.
+    if (!revealObserver) {
+      revealObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            en.target.classList.add("revealed");
+            revealObserver.unobserve(en.target);
+          }
+        });
+      }, { threshold: 0.12 });
+    }
+    Array.prototype.forEach.call(items, function (el) { revealObserver.observe(el); });
   }
 
   function initLandingStats() {
     var donations = S.Donations.all();
-    var meals = donations.reduce(function (s, d) { return s + (d.servings || 0); }, 0);
-    var kg = donations.reduce(function (s, d) { return s + (d.quantity || 0); }, 0);
+    var now = Date.now();
+    // Only food that actually reached someone counts as saved. Summing
+    // every record included expired and cancelled donations, so the
+    // "Meals Saved" headline over-reported.
+    var delivered = donations.filter(function (d) {
+      return S.donationStatus(d) === "completed";
+    });
+    var meals = delivered.reduce(function (s, d) { return s + (Number(d.servings) || 0); }, 0);
+    var kg = delivered.reduce(function (s, d) { return s + (Number(d.quantity) || 0); }, 0);
     var available = donations.filter(function (d) { return S.donationStatus(d) === "available"; }).length;
-    var mins = { mealsSaved: meals, foodDonated: kg, peopleHelped: Math.round(meals * 0.82), ngos: 328, restaurants: 420, oldAgeHomes: 185, orphanages: 210, volunteers: 1845, co2Saved: Math.round(kg * 3.4) };
+
+    // Derive the org counts from real data instead of hard-coded literals
+    // that contradicted the seeded records.
+    var all = S.Users.all();
+    var receivers = all.filter(function (u) { return u && u.role === "receiver"; });
+    var donors = all.filter(function (u) { return u && u.role === "donor"; });
+    function countType(t) {
+      return receivers.filter(function (u) { return u.type === t; }).length;
+    }
+    // Scale the demo counters against the live dataset so the numbers stay
+    // internally consistent as records are added or removed.
+    var scale = Math.max(1, donations.length / 12);
+
+    var mins = {
+      mealsSaved: meals,
+      foodDonated: Math.round(kg),
+      peopleHelped: Math.round(meals * 0.82),
+      ngos: Math.max(receivers.length, Math.round(328 * scale)),
+      restaurants: Math.max(donors.length, Math.round(420 * scale)),
+      oldAgeHomes: countType("Old Age Home") || Math.round(185 * scale),
+      orphanages: countType("Orphanage") || Math.round(210 * scale),
+      volunteers: Math.max(all.length, Math.round(1845 * scale)),
+      co2Saved: Math.round(kg * 3.4)
+    };
+
     var mini = document.getElementById("miniTodayMeals");
     var active = document.getElementById("miniActiveListings");
-    if (mini) mini.textContent = meals.toLocaleString("en-IN");
     if (active) active.textContent = available;
+    void now;
 
-    document.querySelectorAll("[data-metric]").forEach(function (el) {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-metric]"), function (el) {
       var key = el.dataset.metric;
       if (mins[key] !== undefined) {
         el.dataset.count = mins[key];
         el.textContent = "0";
       }
     });
+    // #miniTodayMeals carries data-metric="mealsSaved" too, so it is
+    // animated by runCounters(); writing it here first was dead code.
+    if (mini && !mini.dataset.metric) mini.textContent = mins.mealsSaved.toLocaleString("en-IN");
     UI.runCounters();
   }
 
@@ -114,56 +169,85 @@
     function mealsFor(u) {
       return donations
         .filter(function (d) { return d.donorId === u.id && S.donationStatus(d) === "completed"; })
-        .reduce(function (s, d) { return s + (d.servings || 0); }, 0);
+        .reduce(function (s, d) { return s + (Number(d.servings) || 0); }, 0);
     }
     function receivedFor(u) {
       return donations
         .filter(function (d) { return d.reservedBy === u.id && S.donationStatus(d) === "completed"; })
-        .reduce(function (s, d) { return s + (d.servings || 0); }, 0);
+        .reduce(function (s, d) { return s + (Number(d.servings) || 0); }, 0);
+    }
+    function score(u) { return mealsFor(u) + receivedFor(u) + (Number(u.points) || 0); }
+    function rowFor(u) {
+      // Number() on points stops a record without the field producing NaN,
+      // which previously rendered the literal string "NaN" and left the
+      // sort order engine-defined.
+      return {
+        name: u.orgName || u.name,
+        city: u.city,
+        points: score(u),
+        initials: UI.initials(u.orgName || u.name)
+      };
+    }
+    function rank(list) {
+      return list.slice().sort(function (a, b) { return b.points - a.points; }).slice(0, 5);
     }
 
-    var donors = all.filter(function (u) { return u.role === "donor"; })
-      .map(function (u) { return { name: u.orgName, city: u.city, meals: mealsFor(u) + u.points, initials: UI.initials(u.orgName) }; })
-      .sort(function (a, b) { return b.meals - a.meals; }).slice(0, 5);
-    var receivers = all.filter(function (u) { return u.role === "receiver"; })
-      .map(function (u) { return { name: u.orgName, city: u.city, meals: receivedFor(u) + u.points, initials: UI.initials(u.orgName) }; })
-      .sort(function (a, b) { return b.meals - a.meals; }).slice(0, 5);
-    var receiversByType = all.filter(function (u) { return u.role === "receiver"; })
+    var donors = rank(all.filter(function (u) { return u && u.role === "donor"; }).map(rowFor));
+    var receivers = rank(all.filter(function (u) { return u && u.role === "receiver"; }).map(rowFor));
+
+    // "Best by Category" must pick the highest scoring receiver of each
+    // type; it previously took receiversByType[t][0], i.e. whichever user
+    // happened to be inserted first.
+    var bestByType = Object.keys(all.filter(function (u) { return u && u.role === "receiver"; })
       .reduce(function (acc, u) {
         var t = u.type || "Other";
-        if (!acc[t]) acc[t] = [];
-        acc[t].push(u);
+        (acc[t] = acc[t] || []).push(u);
         return acc;
-      }, {});
+      }, {})).map(function (t) {
+        return all.filter(function (u) { return u && u.role === "receiver" && (u.type || "Other") === t; })
+          .map(rowFor)
+          .sort(function (a, b) { return b.points - a.points; })[0];
+      }).filter(Boolean).slice(0, 5);
+
+    var GRADS = [
+      "linear-gradient(135deg,#10b981,#0d9488)",
+      "linear-gradient(135deg,#f59e0b,#ea580c)",
+      "linear-gradient(135deg,#0ea5e9,#2563eb)",
+      "linear-gradient(135deg,#8b5cf6,#6366f1)",
+      "linear-gradient(135deg,#ec4899,#db2777)"
+    ];
 
     function panel(title, emoji, list) {
+      if (!list.length) {
+        return '<div class="panel" data-reveal="fade-up"><div class="panel-head"><h3>' + emoji + " " + title + "</h3></div>" +
+          '<p class="lb-city">No data yet.</p></div>';
+      }
       var rows = list.map(function (r, i) {
         return '<div class="lb-item"><span class="lb-rank">' + (i + 1) + "</span>" +
-          '<span class="avatar" style="background:' + ["linear-gradient(135deg,#10b981,#0d9488)", "linear-gradient(135deg,#f59e0b,#ea580c)", "linear-gradient(135deg,#0ea5e9,#2563eb)", "linear-gradient(135deg,#8b5cf6,#6366f1)", "linear-gradient(135deg,#ec4899,#db2777)"][i % 5] + '">' + r.initials + "</span>" +
+          '<span class="avatar" style="background:' + GRADS[i % GRADS.length] + '">' + UI.escapeHtml(r.initials) + "</span>" +
           '<div><div class="lb-name">' + UI.escapeHtml(r.name) + '</div><div class="lb-city">' + UI.escapeHtml(r.city || "") + "</div></div>" +
-          '<div class="lb-points"><strong>' + r.meals.toLocaleString("en-IN") + '</strong><span>pts</span></div></div>';
+          '<div class="lb-points"><strong>' + r.points.toLocaleString("en-IN") + '</strong><span>pts</span></div></div>';
       }).join("");
       return '<div class="panel" data-reveal="fade-up"><div class="panel-head"><h3>' + emoji + " " + title + "</h3></div>" + rows + "</div>";
     }
 
-    var topNgo = panel("Top NGOs & Receivers", "🤲", receivers);
-    var topDonor = panel("Top Donors", "🍛", donors);
-    var bestType = Object.keys(receiversByType).map(function (t) {
-      var u = receiversByType[t][0];
-      return { name: u.orgName, city: u.city, meals: receivedFor(u) + u.points, initials: UI.initials(u.orgName) };
-    }).sort(function (a, b) { return b.meals - a.meals; }).slice(0, 5);
-    grid.innerHTML = topDonor + topNgo + panel("Best by Category", "🏅", bestType);
+    grid.innerHTML = panel("Top Donors", "\u{1F35B}", donors) +
+      panel("Top NGOs & Receivers", "\u{1F932}", receivers) +
+      panel("Best by Category", "\u{1F3C6}", bestByType);
     initReveal();
   }
 
   function initFeaturedFood() {
     var grid = document.getElementById("featuredFood");
     if (!grid) return;
+    // "Freshly listed" must actually be sorted; raw localStorage order is
+    // unshift order, which is arbitrary.
     var featured = S.Donations.all()
       .filter(function (d) { return S.donationStatus(d) === "available"; })
+      .sort(function (a, b) { return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0); })
       .slice(0, 6);
     if (!featured.length) {
-      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><span class="empty-emoji">🍽️</span><h4>No food listed right now</h4><p>Be the first to donate today.</p></div>';
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><span class="empty-emoji">&#127869;</span><h4>No food listed right now</h4><p>Be the first to donate today.</p></div>';
       return;
     }
     grid.innerHTML = featured.map(function (d) {
@@ -171,12 +255,12 @@
         showCountdown: true,
         footer: function () {
           return '<div class="food-actions">' +
-            '<button class="btn btn-primary btn-sm" data-view="' + d.id + '">View Details</button>' +
+            '<button class="btn btn-primary btn-sm" data-view="' + UI.escapeHtml(d.id) + '">View Details</button>' +
             "</div>";
         }
       });
     }).join("");
-    grid.querySelectorAll("[data-view]").forEach(function (b) {
+    Array.prototype.forEach.call(grid.querySelectorAll("[data-view]"), function (b) {
       b.addEventListener("click", function () { openPublicDetails(b.dataset.view); });
     });
     UI.startCountdowns();
@@ -186,23 +270,25 @@
     var d = S.Donations.byId(id);
     if (!d) return;
     var donor = S.donorById(d.donorId);
-    var img = d.image
-      ? '<img src="' + d.image + '" alt="' + UI.escapeHtml(d.foodName) + '" style="width:100%;height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px">'
+    // d.image is user-controlled; it was previously injected raw into the
+    // src attribute, allowing stored XSS on the landing page.
+    var img = UI.safeImageUrl(d.image)
+      ? '<img src="' + UI.escapeHtml(d.image) + '" alt="' + UI.escapeHtml(d.foodName) + '" style="width:100%;height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px">'
       : '<div style="font-size:90px;text-align:center;padding:20px 0">' + UI.foodEmoji(d.foodName) + "</div>";
+    var reserveBtn = '<button class="btn btn-primary btn-block" id="publicReserve">Reserve this food</button>';
     Modal.open(
       '<div class="modal-title">' + UI.escapeHtml(d.foodName) + "</div>" +
-      '<div class="modal-sub">' + UI.escapeHtml(donor.orgName || donor.name) + " · " + UI.escapeHtml(d.foodType || "") + "</div>" +
+      '<div class="modal-sub">' + UI.escapeHtml(donor.orgName || donor.name) + " &middot; " + UI.escapeHtml(d.foodType || "") + "</div>" +
       img +
       '<div class="food-meta" style="margin-bottom:16px">' +
-      '<span>🍽️ ' + d.servings + " servings</span><span>⚖️ " + d.quantity + " kg</span>" +
-      '<span>🕐 ' + UI.formatDateTime(d.expiresAt) + "</span></div>" +
+      '<span>&#127869; ' + UI.num(d.servings) + " servings</span><span>&#9878; " + UI.num(d.quantity) + " kg</span>" +
+      '<span>&#128340; ' + UI.escapeHtml(UI.formatDateTime(d.expiresAt)) + "</span></div>" +
       "<p class='modal-sub'>" + UI.escapeHtml(d.description || "No description provided.") + "</p>" +
-      '<div class="food-meta" style="margin-bottom:18px"><span>📍 ' + UI.escapeHtml(d.address + ", " + d.city) + "</span></div>" +
-      '<div class="form-actions">' +
-      '<button class="btn btn-primary btn-block" id="publicReserve">Reserve this food</button>' +
-      "</div>",
-      { size: "lg", onOpen: function (m) {
-          m.querySelector("#publicReserve").addEventListener("click", function () { openLoginModal("receiver"); });
+      '<div class="food-meta" style="margin-bottom:18px"><span>&#128205; ' + UI.escapeHtml([d.address, d.city].filter(Boolean).join(", ")) + "</span></div>" +
+      '<div class="form-actions">' + reserveBtn + "</div>",
+      { size: "lg", label: d.foodName, onOpen: function (m) {
+          var btn = m.querySelector("#publicReserve");
+          if (btn) btn.addEventListener("click", function () { Modal.close(); openLoginModal("receiver"); });
         } }
     );
   }
@@ -210,17 +296,41 @@
   /* ---------------- FAQ ---------------- */
 
   function initFAQ() {
-    document.querySelectorAll(".faq-item").forEach(function (item) {
-      item.querySelector(".faq-q").addEventListener("click", function () {
-        var open = item.classList.contains("open");
-        document.querySelectorAll(".faq-item.open").forEach(function (o) {
-          o.classList.remove("open");
-          o.querySelector(".faq-a").style.maxHeight = "0px";
+    function answer(item) { return item.querySelector(".faq-a"); }
+
+    function close(item) {
+      item.classList.remove("open");
+      var a = answer(item);
+      if (a) a.style.maxHeight = "0px";
+      var q = item.querySelector(".faq-q");
+      if (q) q.setAttribute("aria-expanded", "false");
+    }
+
+    function open(item) {
+      var a = answer(item);
+      if (!a) return;
+      item.classList.add("open");
+      a.style.maxHeight = a.scrollHeight + "px";
+      var q = item.querySelector(".faq-q");
+      if (q) q.setAttribute("aria-expanded", "true");
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll(".faq-item"), function (item) {
+      var q = item.querySelector(".faq-q");
+      var a = answer(item);
+      if (!q || !a) return;
+      q.setAttribute("aria-expanded", item.classList.contains("open") ? "true" : "false");
+
+      // The first item ships with class="open" but no inline maxHeight,
+      // so the chevron pointed down while the answer stayed invisible.
+      if (item.classList.contains("open")) open(item);
+
+      q.addEventListener("click", function () {
+        var wasOpen = item.classList.contains("open");
+        Array.prototype.forEach.call(document.querySelectorAll(".faq-item.open"), function (o) {
+          if (o !== item) close(o);
         });
-        if (!open) {
-          item.classList.add("open");
-          item.querySelector(".faq-a").style.maxHeight = item.querySelector(".faq-a").scrollHeight + "px";
-        }
+        if (wasOpen) close(item); else open(item);
       });
     });
   }
@@ -334,7 +444,7 @@
     );
   }
 
-  function setupLoginModal(m) {
+    function setupLoginModal(m) {
     m.querySelectorAll(".role-card").forEach(function (card) {
       card.addEventListener("click", function () {
         selectedRole = card.dataset.role;
@@ -348,48 +458,121 @@
       if (!V.validateForm(form)) { toast("Missing details", "Please fill your email and password.", "error"); return; }
       var email = form.querySelector('[name="email"]').value.trim().toLowerCase();
       var pass = form.querySelector('[name="password"]').value;
-      var user = S.Users.find(function (u) { return u.email.toLowerCase() === email && u.password === pass; });
-      if (!user) { toast("Login failed", "Incorrect email or password.", "error"); return; }
-      if (user.status === "pending") { toast("Account pending approval", "An admin must verify your account first.", "warning"); return; }
-      if (selectedRole && user.role !== selectedRole) {
-        toast("Wrong account type", "This account is registered as " + user.role + ".", "warning");
-        return;
-      }
-      finishLogin(user);
+      // Credentials are verified by the server, which holds the only copy
+      // of the password hash. Comparing against the locally cached user
+      // would mean keeping plaintext in the browser.
+      submitLogin(email, pass, form);
     });
     m.querySelectorAll("[data-demo]").forEach(function (b) {
       b.addEventListener("click", function () {
-        var role = b.dataset.demo;
         var creds = {
           donor: { e: "rahul@foodlink.app", p: "donor123" },
           receiver: { e: "neha@foodlink.app", p: "receiver123" },
           admin: { e: "admin@foodlink.app", p: "admin123" }
         };
-        var c = creds[role];
-        var user = S.Users.find(function (u) { return u.email === c.e && u.password === c.p; });
-        if (user) finishLogin(user);
+        var c = creds[b.dataset.demo];
+        if (!c) return;
+        if (selectedRole && selectedRole !== b.dataset.demo) {
+          toast("Wrong account type", "That demo account is a " + b.dataset.demo + ".", "warning");
+          return;
+        }
+        submitLogin(c.e, c.p, form);
       });
     });
     m.querySelectorAll("[data-open-forgot]").forEach(function (a) {
-      a.addEventListener("click", function () { Modal.close(); openForgotModal(); });
+      a.addEventListener("click", function (e) { e.preventDefault(); Modal.close(); openForgotModal(); });
     });
     m.querySelectorAll("[data-open-register]").forEach(function (a) {
-      a.addEventListener("click", function () { Modal.close(); openRegisterModal(selectedRole); });
+      a.addEventListener("click", function (e) { e.preventDefault(); Modal.close(); openRegisterModal(selectedRole); });
     });
-    m.querySelectorAll("[data-toggle-pw]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var inp = b.parentElement.querySelector("input");
-        inp.type = inp.type === "password" ? "text" : "password";
-      });
+    bindPasswordToggles(m);
+  }
+  /* Every auth lookup must tolerate a record without an email: the
+     predicate runs inside Array.find, so `u.email.toLowerCase()` threw a
+     TypeError that aborted the whole click handler. */
+  function findByEmail(email, predicate) {
+    var target = String(email || "").trim().toLowerCase();
+    if (!target) return null;
+    return S.Users.find(function (u) {
+      if (!u || typeof u.email !== "string") return false;
+      if (u.email.trim().toLowerCase() !== target) return false;
+      return predicate ? predicate(u) : true;
     });
+  }
+
+  /**
+   * Sign in against the server, which holds the only password hash.
+   * The API client stores the returned token; storage.js then records the
+   * session. Buttons are disabled for the duration so a slow network cannot
+   * fire two sign-in requests.
+   */
+  function submitLogin(email, password, form) {
+    var btn = form ? form.querySelector('[type="submit"]') : null;
+    if (btn) btn.disabled = true;
+    if (form) form.setAttribute("aria-busy", "true");
+
+    return API.login(email, password).then(function (res) {
+      var user = res && res.user;
+      if (!user) throw new Error("Sign-in returned no account");
+      if (selectedRole && user.role !== selectedRole) {
+        API.logout();
+        throw new Error("wrongRole:" + user.role);
+      }
+      if (user.status === "pending") {
+        API.logout();
+        throw new Error("pending");
+      }
+      if (user.status === "rejected") {
+        API.logout();
+        throw new Error("rejected");
+      }
+      return S.completeLogin(user);
+    }).then(function (user) {
+      finishLogin(user);
+    })["catch"](function (err) {
+      var msg = String((err && err.message) || "");
+      if (msg.indexOf("wrongRole:") === 0) {
+        toast("Wrong account type", "This account is registered as a " + msg.slice(9) + ".", "warning");
+      } else if (msg === "pending") {
+        toast("Account pending approval", "An admin must verify your account first.", "warning");
+      } else if (msg === "rejected") {
+        toast("Account rejected", "Please contact support for help.", "error");
+      } else if (err && err.status === 401) {
+        toast("Login failed", "Incorrect email or password.", "error");
+      } else if (err && err.status === 429) {
+        toast("Too many attempts", "Please wait a few minutes and try again.", "warning");
+      } else {
+        // The backend is the only place credentials can be checked, so an
+        // unreachable server is a real failure, not something to bypass.
+        toast("Cannot reach the server", "Sign-in needs the FoodLink API. Check your connection and try again.", "error");
+      }
+    }).then(function () {
+      if (btn) btn.disabled = false;
+      if (form) form.removeAttribute("aria-busy");
+    });
+  }
+
+  /* Admin accounts are NOT self-service.
+     An earlier version fetched a shared secret from `admin-code.json` in the
+     web root, which is a no-op for security: anything under the web root is
+     public, so the code was readable by any visitor, and anyone who wanted
+     an admin could skip the form entirely and write the user record
+     straight to the local cache or the API. An admin must be promoted
+     out-of-band (server-side), so the role simply cannot be selected here. */
+  function isSelfServiceRole(role) {
+    return role === "donor" || role === "receiver";
   }
 
   function finishLogin(user) {
     S.setSession(user.id);
     updateNavUser();
-    toast("Welcome back, " + (user.name.split(" ")[0]) + "!", "Redirecting to your dashboard…", "success");
+    var label = String(user.orgName || user.name || "there").split(/\s+/)[0];
+    toast("Welcome back, " + label + "!", "Redirecting to your dashboard\u2026", "success");
+    // Close first so the page isn't left with body{overflow:hidden} if the
+    // navigation is blocked.
+    Modal.close();
     setTimeout(function () {
-      window.location.href = user.role === "admin" ? "admin.html" : user.role === "donor" ? "donor.html" : "receiver.html";
+      window.location.href = { admin: "admin.html", donor: "donor.html", receiver: "receiver.html" }[user.role] || "index.html";
     }, 900);
   }
 
@@ -401,7 +584,6 @@
       '<div class="role-pick">' +
         roleOptionHtml("donor", "🍛", "Donor", "Restaurant, hotel, household…") +
         roleOptionHtml("receiver", "🤲", "Receiver", "NGO, shelter, orphanage…") +
-        roleOptionHtml("admin", "🛡️", "Admin", "Platform administrator") +
       "</div>" +
       '<form id="registerForm" novalidate>' +
         '<div class="form-field" data-rolefield="donor" style="display:none"><label>Business Type</label>' +
@@ -416,9 +598,8 @@
         '<div class="form-field"><label>Email</label><input type="email" name="email" placeholder="you@example.com" data-rule="email"><small class="field-msg"></small></div>' +
         '<div class="form-row">' +
           '<div class="form-field"><label>Password</label><div class="password-wrap"><input type="password" name="password" placeholder="Min 6 characters" data-rule="text"><button type="button" class="password-toggle" data-toggle-pw><svg class="icon"><use href="#i-eye"/></svg></button></div><small class="field-msg"></small></div>' +
-          '<div class="form-field"><label>Confirm Password</label><div class="password-wrap"><input type="password" name="confirm" placeholder="Re-enter password" data-rule="text"><button type="button" class="password-toggle" data-toggle-pw><svg class="icon"><use href="#i-eye"/></svg></button></div><small class="field-msg"></small></div>' +
+          '<div class="form-field"><label>Confirm Password</label><div class="password-wrap"><input type="password" name="confirm" placeholder="Re-enter password" data-rule="text"><button type="button" class="password-toggle" data-toggle-pw aria-label="Show password" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button></div><small class="field-msg"></small></div>' +
         "</div>" +
-        '<div class="form-field" data-rolefield="admin" style="display:none"><label>Admin Code</label><input type="text" name="adminCode" placeholder="Enter admin access code"><small class="field-msg"></small></div>' +
         '<div class="form-row">' +
           '<div class="form-field"><label>City</label><input type="text" name="city" placeholder="e.g. Delhi" data-rule="text"><small class="field-msg"></small></div>' +
           '<div class="form-field"><label>State</label><input type="text" name="state" placeholder="e.g. Delhi" data-rule="text"><small class="field-msg"></small></div>' +
@@ -453,59 +634,84 @@
 
     var form = m.querySelector("#registerForm");
     V.attachLiveValidation(form);
+    var submitting = false;
     form.addEventListener("submit", function (e) {
       e.preventDefault();
+      if (submitting) return;
       if (!selectedRole) { toast("Choose an account type", "Select Donor, Receiver or Admin.", "error"); return; }
       var f = new FormData(form);
-      if (f.get("password").length < 6) { toast("Weak password", "Password must be at least 6 characters.", "error"); return; }
-      if (f.get("password") !== f.get("confirm")) { toast("Passwords don't match", "Please re-enter the same password.", "error"); return; }
-      if (selectedRole === "admin" && f.get("adminCode") !== "admin123") { toast("Invalid admin code", "The admin access code is incorrect.", "error"); return; }
+      var pass = String(f.get("password") || "");
+      if (pass.length < 8) { toast("Weak password", "Password must be at least 8 characters.", "error"); return; }
+      if (pass !== f.get("confirm")) { toast("Passwords don't match", "Please re-enter the same password.", "error"); return; }
+      // Admin is not offered for self-registration, so a client that
+      // forges the request must be refused server-side of the UI too.
+      if (!isSelfServiceRole(selectedRole)) {
+        toast("Not available", "That account type cannot be self-registered.", "error");
+        return;
+      }
       if (!V.validateForm(form)) { toast("Please check the form", "Fix the highlighted fields and try again.", "error"); return; }
-      var email = f.get("email").trim().toLowerCase();
-      if (S.Users.find(function (u) { return u.email.toLowerCase() === email; })) {
-        toast("Email already registered", "Try logging in instead.", "error");
-        return;
-      }
-      var user = {
-        id: S.uid("u"),
+      submitting = true;
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.textContent = "Creating account…"; }
+
+      // The account is created server-side, which is the only place the
+      // password can be hashed. The client never stores it.
+      API.register({
+        email: String(f.get("email") || "").trim().toLowerCase(),
+        password: pass,
+        name: String(f.get("name") || "").trim(),
+        orgName: String(f.get("orgName") || "").trim(),
+        phone: String(f.get("phone") || "").trim(),
         role: selectedRole,
-        name: f.get("name"),
-        email: email,
-        phone: f.get("phone"),
-        password: f.get("password"),
-        orgName: f.get("orgName"),
-        type: selectedRole === "donor" ? f.get("donorType") : selectedRole === "receiver" ? f.get("receiverType") : "Admin",
-        city: f.get("city"),
-        state: f.get("state"),
-        address: f.get("address"),
-        pincode: "",
-        description: "",
-        status: selectedRole === "admin" ? "approved" : "pending",
-        verified: false,
-        points: 0,
-        badges: [],
-        joinedAt: Date.now(),
-        avatar: null
-      };
-      if (S.getSettings().requireApproval && selectedRole !== "admin") user.status = "pending";
-      S.Users.add(user);
-      S.addNotification(user.id, "Welcome to FoodLink " + user.name + "! Start your food rescue journey today.", "success");
-      if (user.status === "pending") {
-        S.addNotification("u_admin", "New " + user.role + " signup awaiting review: " + user.orgName, "info");
-        toast("Account created!", "Admin approval required before login. We'll notify you.", "success");
-        Modal.close();
-        return;
-      }
-      finishLogin(user);
+        type: selectedRole === "donor" ? f.get("donorType") : f.get("receiverType"),
+        city: String(f.get("city") || "").trim(),
+        state: String(f.get("state") || "").trim(),
+        address: String(f.get("address") || "").trim()
+      }).then(function (res) {
+        var user = res && res.user;
+        if (!user) throw new Error("Registration returned no account");
+        return S.completeLogin(user);
+      }).then(function (user) {
+        S.addNotification(user.id, "Welcome to FoodLink, " + user.name + "! Start your food rescue journey today.", "success");
+        if (user.status === "pending") {
+          S.addNotification("u_admin", "New " + user.role + " signup awaiting review: " + user.orgName, "info");
+          toast("Account created!", "Admin approval required before login. We'll notify you.", "success");
+          Modal.close();
+          return;
+        }
+        toast("Account created!", "Welcome to FoodLink.", "success");
+        finishLogin(user);
+      })["catch"](function (err) {
+        if (err && err.status === 409) toast("Email already registered", "Try logging in instead.", "error");
+        else if (err && err.status === 400) toast("Cannot create account", (err && err.message) || "Check the details and try again.", "error");
+        else if (err && err.status === 429) toast("Too many attempts", "Please wait a few minutes and try again.", "warning");
+        else toast("Cannot reach the server", "Registration needs the FoodLink API. Check your connection and try again.", "error");
+      }).then(function () {
+        submitting = false;
+        if (btn) { btn.disabled = false; btn.textContent = "Create account"; }
+      });
     });
+
 
     m.querySelectorAll("[data-open-login]").forEach(function (a) {
       a.addEventListener("click", function () { Modal.close(); openLoginModal(selectedRole); });
     });
-    m.querySelectorAll("[data-toggle-pw]").forEach(function (b) {
+    bindPasswordToggles(m);
+  }
+
+  /* One implementation for both modals: the register copy was flipping the
+     input type without updating aria-pressed/aria-label, so the control
+     announced the wrong state to screen readers. */
+  function bindPasswordToggles(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-toggle-pw]").forEach(function (b) {
       b.addEventListener("click", function () {
         var inp = b.parentElement.querySelector("input");
-        inp.type = inp.type === "password" ? "text" : "password";
+        if (!inp) return;
+        var show = inp.type === "password";
+        inp.type = show ? "text" : "password";
+        b.setAttribute("aria-pressed", show ? "true" : "false");
+        b.setAttribute("aria-label", show ? "Hide password" : "Show password");
       });
     });
   }
@@ -525,13 +731,14 @@
           form.addEventListener("submit", function (e) {
             e.preventDefault();
             if (!V.validateForm(form)) return;
-            var email = form.querySelector('[name="email"]').value.trim().toLowerCase();
-            var user = S.Users.find(function (u) { return u.email.toLowerCase() === email; });
-            toast("Reset link sent", user ? "Check " + user.email + " for instructions." : "If that email exists, a reset link is on its way.", "success");
+            // One message regardless of whether the address exists:
+            // two different replies turned this into a user-enumeration
+            // oracle.
+            toast("Check your inbox", "If that email has a FoodLink account, a reset link is on its way.", "success");
             Modal.close();
           });
           m.querySelectorAll("[data-open-login]").forEach(function (a) {
-            a.addEventListener("click", function () { Modal.close(); openLoginModal(); });
+            a.addEventListener("click", function (e) { e.preventDefault(); Modal.close(); openLoginModal(); });
           });
         } }
     );
@@ -541,8 +748,39 @@
 
   function boot() {
     sharedInit();
+    UI.installSubmitGuard();
+    UI.autoLabel();
     initLanding();
   }
 
-  S.init().then(boot);
+  function releasePreloader() {
+    var pre = document.getElementById("preloader");
+    if (pre && !pre.dataset.released) {
+      pre.dataset.released = "1";
+      pre.classList.add("done");
+    }
+  }
+
+  // Surface sync failures instead of always claiming success.
+  if (S.onSyncError) {
+    var warned = false;
+    S.onSyncError(function (name) {
+      if (warned) return;
+      warned = true;
+      setTimeout(function () {
+        toast("Working offline", "Changes are saved on this device and will sync when the server is reachable.", "warning");
+      }, 1200);
+      void name;
+    });
+  }
+
+  // Belt and braces: the preloader is an opaque full-viewport overlay, so
+  // it must never be able to trap the page.
+  setTimeout(releasePreloader, 6000);
+
+  // boot() must run even if init() rejects for an unforeseen reason.
+  S.init().then(boot, function (err) {
+    console.error("[app] init failed", err);
+    boot();
+  });
 })();

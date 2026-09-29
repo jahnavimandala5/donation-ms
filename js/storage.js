@@ -27,35 +27,70 @@ window.FoodLink = window.FoodLink || {};
 
   var DEFAULT_SETTINGS = {
     siteName: "FoodLink",
-    siteTagline: "Save Food • Feed People • Reduce Waste",
+    siteTagline: "Save Food â€¢ Feed People â€¢ Reduce Waste",
     contactEmail: "hello@foodlink.app",
     contactPhone: "+91 98765 43210",
     emergencyContact: "+91 90000 10000",
     requireApproval: false,
     announcementsEnabled: true,
-    currency: "₹"
+    currency: "â‚¹"
   };
 
   /* ---------------- low level ---------------- */
 
+  var quotaWarned = false;
+
   function get(key, fallback) {
+    var raw;
+    try { raw = localStorage.getItem(key); }
+    catch (e) { return fallback; }
+    if (raw === null) return fallback;
     try {
-      var raw = localStorage.getItem(key);
-      return raw === null ? fallback : JSON.parse(raw);
+      var parsed = JSON.parse(raw);
+      // A stored collection must stay an array. Anything else (corrupt
+      // write, hand-edited devtools value, another tab mid-write) is
+      // discarded so the caller never iterates a string or a number.
+      if (fallback !== undefined && Array.isArray(fallback) && !Array.isArray(parsed)) {
+        return fallback;
+      }
+      return parsed;
     } catch (e) {
+      // Drop the unparseable value so it cannot fail forever.
+      try { localStorage.removeItem(key); } catch (e2) { /* ignore */ }
       return fallback;
     }
   }
 
   function set(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
-    catch (e) { return false; }
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      if (!quotaWarned) {
+        quotaWarned = true;
+        console.error("[storage] localStorage write failed for " + key + ":", e && e.name);
+      }
+      return false;
+    }
   }
 
-  function remove(key) { localStorage.removeItem(key); }
+  function remove(key) {
+    try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+  }
 
+  var idCounter = 0;
   function uid(prefix) {
-    return (prefix || "id") + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    idCounter = (idCounter + 1) % 1296;
+    var seq = idCounter.toString(36);
+    var rand = Math.random().toString(36).slice(2, 8);
+    if (window.crypto && window.crypto.getRandomValues) {
+      try {
+        var buf = new Uint32Array(1);
+        window.crypto.getRandomValues(buf);
+        rand = buf[0].toString(36);
+      } catch (e) { /* fall back to Math.random */ }
+    }
+    return (prefix || "id") + "_" + Date.now().toString(36) + seq + rand;
   }
 
   /* ---------------- time helpers ---------------- */
@@ -69,14 +104,171 @@ window.FoodLink = window.FoodLink || {};
 
   var SERVER_KEYS = ["users", "donations", "requests", "notifications", "favorites", "feedback", "contacts", "settings"];
 
-  /* Push the current in-browser collection to the MongoDB backend.
-     Fire-and-forget: never blocks the UI, never throws. */
-  function pushCollection(key) {
+  var syncQueues = {};
+  var syncState = { pending: {}, lastError: null, lastErrorAt: 0, online: true };
+  var onSyncError = null;
+
+  /* The backend no longer accepts wholesale collection replacement from
+     ordinary accounts: a full PUT is an administrative operation, and every
+     user write is ownership-checked server-side. So the client stops
+     mirroring "the whole array" and instead reconciles it record by record
+     with POST / PATCH / DELETE.
+
+     `serverSnapshots` holds the last known server state per collection.
+     A diff against it is what turns a local edit into a minimal set of
+     requests, and it is what stops the browser from re-uploading - or
+     deleting - rows it never actually changed. */
+  var serverSnapshots = {};
+
+  function clone(v) {
+    try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; }
+  }
+
+  function rememberServerState(name, rows) {
+    if (!Array.isArray(rows)) return;
+    var map = {};
+    rows.forEach(function (r) { if (r && r.id) map[r.id] = clone(r); });
+    serverSnapshots[name] = map;
+  }
+
+  function syncState_() { return syncState; }
+
+  function noteSyncError(name, message) {
+    syncState.online = false;
+    syncState.lastError = message;
+    syncState.lastErrorAt = Date.now();
+    if (typeof onSyncError === "function") {
+      try { onSyncError(name, message); } catch (e) { /* ignore */ }
+    } else {
+      console.error("[storage] sync failed for " + name + ": " + message);
+    }
+  }
+
+  function noteSyncOk() {
+    syncState.online = true;
+  }
+
+  /* Runs one record operation, keeping a single queue per collection so two
+     edits never race. A failure stops the remaining ops for that
+     collection: replaying later writes over an earlier failed one would
+     leave the server in a half-applied state. */
+  function enqueueOps(name, ops) {
+    if (!ops.length) return Promise.resolve(true);
+    syncState.pending[name] = true;
+    var q = syncQueues[name] || (syncQueues[name] = { running: false, queued: null });
+    q.queued = q.queued ? q.queued.concat(ops) : ops;
+    if (q.running) return Promise.resolve(true);
+    q.running = true;
+
+    var API = window.FoodLink.API;
+
+    function pump() {
+      var batch = q.queued;
+      q.queued = null;
+      if (!batch || !batch.length) { q.running = false; delete syncState.pending[name]; return; }
+
+      function step(i) {
+        if (i >= batch.length) {
+          noteSyncOk();
+          q.running = false;
+          delete syncState.pending[name];
+          if (q.queued && q.queued.length) { q.running = true; pump(); }
+          return;
+        }
+        var op = batch[i];
+        var p;
+        if (op.kind === "post") p = API.add(name, op.doc);
+        else if (op.kind === "patch") p = API.update(name, op.id, op.patch);
+        else p = API.del(name, op.id);
+
+        p.then(function (saved) {
+          if (op.kind === "post" && saved && saved.id && serverSnapshots[name]) {
+            serverSnapshots[name][saved.id] = clone(saved);
+          }
+          step(i + 1);
+        })["catch"](function (err) {
+          // 401/403 here means the session or the role no longer allows the
+          // write. Retrying would fail identically, so the queue is dropped.
+          delete syncState.pending[name];
+          q.running = false;
+          q.queued = null;
+          noteSyncError(name, (err && err.message) || String(err));
+        });
+      }
+      step(0);
+    }
+    pump();
+    return Promise.resolve(true);
+  }
+
+  function rowsEqual(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  /* Reconcile one local collection with the server.
+
+     New local rows are created, changed rows are patched, and rows the
+     server has but the browser no longer does are deleted. The delete leg
+     only runs for administrators: for an ordinary account the browser copy
+     is a filtered view of shared data, so a missing row means "not mine to
+     see", not "no longer exists". */
+  function pushCollection(key, opts) {
+    opts = opts || {};
     try {
-      if (!window.FoodLink.API) return;
-      var name = key.replace("fl_", "");
-      var v = name === "settings" ? [get(KEYS.settings, {})] : get(key, []);
-      window.FoodLink.API.putCollection(name, v).catch(function () {});
+      var API = window.FoodLink.API;
+      if (!API || !API.add) return;
+      var name = key.indexOf("fl_") === 0 ? key.slice(3) : key;
+      if (name === "users" && !opts.admin) return; // accounts are server-owned
+
+      var local = name === "settings" ? [get(KEYS.settings, {})] : get(key, []);
+      if (!Array.isArray(local)) return;
+      var snap = serverSnapshots[name];
+      // With no baseline we cannot tell new from pre-existing, and guessing
+      // would either duplicate or destroy rows. Wait for a bootstrap.
+      if (!snap) return;
+
+      var isAdmin = !!opts.admin;
+      var me = currentUser();
+      var ops = [];
+      var seen = {};
+
+      local.forEach(function (row) {
+        if (!row || !row.id) return;
+        seen[row.id] = true;
+        var before = snap[row.id];
+        if (!before) {
+          ops.push({ kind: "post", doc: row });
+        } else if (!rowsEqual(before, row)) {
+          var patch = {};
+          Object.keys(row).forEach(function (k) {
+            if (k === "__proto__" || k === "constructor" || k === "prototype") return;
+            if (JSON.stringify(row[k]) !== JSON.stringify(before[k])) patch[k] = row[k];
+          });
+          if (Object.keys(patch).length) ops.push({ kind: "patch", id: row.id, patch: patch });
+        }
+      });
+
+      if (name !== "users") {
+        var ownerField = { donations: "donorId", requests: "receiverId",
+                           favorites: "receiverId", notifications: "userId",
+                           feedback: "userId" }[name];
+        var myId = me ? me.id : null;
+        Object.keys(snap).forEach(function (id) {
+          if (seen[id]) return;
+          var row = snap[id];
+          // An administrator may reconcile any row. Everyone else may only
+          // remove rows the server already attributes to them: for any other
+          // collection the browser copy is a filtered view of shared data,
+          // so a missing row means "not mine", not "no longer exists".
+          if (!isAdmin) {
+            if (!myId || !ownerField) return;
+            if (String(row[ownerField]) !== String(myId)) return;
+          }
+          ops.push({ kind: "del", id: id });
+        });
+      }
+
+      enqueueOps(name, ops);
     } catch (e) { /* ignore sync errors */ }
   }
 
@@ -87,62 +279,120 @@ window.FoodLink = window.FoodLink || {};
     return window.FoodLink.API.bootstrap()
       .then(function (data) {
         if (!data || typeof data !== "object") { seed(); return false; }
+
+        // A reachable-but-empty server must not wipe good local data or
+        // latch the "seeded" flag, otherwise the app boots with zero users
+        // and no admin account, which is unrecoverable from the UI.
+        var totalRows = 0;
+        SERVER_KEYS.forEach(function (k) {
+          var v = data[k];
+          if (Array.isArray(v)) totalRows += (k === "settings" ? Math.min(v.length, 1) : v.length);
+        });
+        if (totalRows === 0 && get(KEYS.users, []).length === 0) {
+          seed();
+          return false;
+        }
+
         SERVER_KEYS.forEach(function (k) {
           var v = data[k];
           if (v === undefined) return;
           if (k === "settings") {
-            set(KEYS.settings, Array.isArray(v) && v.length ? v[0] : {});
-          } else {
-            set(KEYS[k], Array.isArray(v) ? v : []);
+            // Never clobber local settings with an empty server copy.
+            if (Array.isArray(v) && v.length && v[0] && typeof v[0] === "object") {
+              set(KEYS.settings, v[0]);
+            }
+            return;
           }
+          if (!Array.isArray(v)) return;
+          // This is the reconciliation baseline for later diffs. A key the
+          // server withholds (contacts for a non-admin) is deliberately not
+          // recorded, so the client never tries to delete rows it cannot see.
+          rememberServerState(k, v);
+          var local = get(KEYS[k], []);
+          // Keep whichever copy actually has rows; never replace data with [].
+          if (v.length || !local.length) set(KEYS[k], v);
         });
         set(KEYS.seeded, true);
+        refreshDemoFreshness();
         return true;
       })
-      .catch(function () {
+      ["catch"](function () {
+        syncState.online = false;
         seed();
         return false;
       });
   }
 
   function collection(key) {
+    var prefix = key.indexOf("fl_") === 0 ? key.slice(3) : key;
+    function read() { return get(key, []); }
+    // Account writes are server-owned, so the local user cache is never
+    // mirrored wholesale; a signed-in user edits their own record through
+    // the authenticated PATCH route instead.
+    function isAdminNow() {
+      var u = currentUser();
+      return !!(u && u.role === "admin");
+    }
+    function sync() { pushCollection(key, { admin: isAdminNow() }); }
     return {
-      all: function () { return get(key, []); },
-      save: function (list) { var ok = set(key, list); pushCollection(key); return ok; },
+      all: function () { return read(); },
+      save: function (list) {
+        if (!Array.isArray(list)) return false;
+        var ok = set(key, list);
+        sync();
+        return ok;
+      },
       find: function (fn) {
-        var list = get(key, []);
+        var list = read();
         for (var i = 0; i < list.length; i++) { if (fn(list[i])) return list[i]; }
         return null;
       },
+      // Deliberately not `this`-dependent so a detached reference is safe.
       byId: function (id) {
-        return this.find(function (r) { return r.id === id; });
+        var list = read();
+        for (var i = 0; i < list.length; i++) { if (list[i] && list[i].id === id) return list[i]; }
+        return null;
       },
       add: function (row) {
-        if (!row.id) row.id = uid(key.replace("fl_", ""));
-        var list = get(key, []);
+        if (!row || typeof row !== "object") return null;
+        if (!row.id || this.byId(row.id)) row.id = uid(prefix);
+        var list = read();
         list.unshift(row);
         set(key, list);
-        pushCollection(key);
+        sync();
         return row;
       },
       update: function (id, patch) {
-        var list = get(key, []);
+        if (!patch || typeof patch !== "object") return null;
+        var list = read();
         var out = null;
+        var changed = false;
         for (var i = 0; i < list.length; i++) {
-          if (list[i].id === id) {
-            for (var k in patch) {
-              if (Object.prototype.hasOwnProperty.call(patch, k)) list[i][k] = patch[k];
+          if (!list[i] || list[i].id !== id) continue;
+          for (var k in patch) {
+            // Block prototype-pollution keys and never write an own `id`.
+            if (k === "__proto__" || k === "constructor" || k === "prototype" || k === "id") continue;
+            if (Object.prototype.hasOwnProperty.call(patch, k) && list[i][k] !== patch[k]) {
+              list[i][k] = patch[k];
+              changed = true;
             }
-            out = list[i]; break;
           }
+          out = list[i];
+          break;
         }
+        // No match means no write and no destructive full-collection PUT.
+        if (!changed) return out;
         set(key, list);
-        pushCollection(key);
+        sync();
         return out;
       },
       remove: function (id) {
-        set(key, get(key, []).filter(function (r) { return r.id !== id; }));
-        pushCollection(key);
+        var list = read();
+        var next = list.filter(function (r) { return !r || r.id !== id; });
+        if (next.length === list.length) return false;
+        set(key, next);
+        sync();
+        return true;
       }
     };
   }
@@ -166,20 +416,84 @@ window.FoodLink = window.FoodLink || {};
   function requireRole(roles) {
     var u = currentUser();
     if (!u) { window.location.href = "index.html"; return null; }
-    if (roles.indexOf(u.role) === -1) {
-      window.location.href = u.role === "admin" ? "admin.html" : (u.role === "donor" ? "donor.html" : "receiver.html");
+    if (roles.indexOf(u.role) !== -1) return u;
+
+    // A role the app does not know must not bounce between dashboards in
+    // an infinite loop; fall back to the landing page instead.
+    var home = { admin: "admin.html", donor: "donor.html", receiver: "receiver.html" }[u.role];
+    if (!home) {
+      console.warn("[storage] unknown role '" + u.role + "' - sending user to index.html");
+      clearSession();
+      window.location.href = "index.html";
       return null;
     }
-    return u;
+    window.location.href = home;
+    return null;
+  }
+
+  /**
+   * Called once the server has verified credentials and issued a token.
+   * The cached public copy of the account is replaced with the
+   * authoritative record so that role, status and verification checks in
+   * the UI are made against server truth rather than the public projection.
+   */
+  function completeLogin(user) {
+    if (!user || !user.id) return null;
+    var list = Users.all().slice();
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === user.id) { idx = i; break; }
+    }
+    var merged = Object.assign({}, idx === -1 ? {} : list[idx], user);
+    if (idx === -1) list.push(merged); else list[idx] = merged;
+    set(KEYS.users, list);
+    rememberServerState("users", list);
+    set(KEYS.session, user.id);
+    return currentUser();
+  }
+
+  /* Fields the server lets an account change on itself. Anything else -
+     role, status, verified, points, badges - is server-owned, so a client
+     that tries to edit them is quietly ignored rather than trusted. */
+  var SELF_EDITABLE = ["name", "orgName", "type", "phone", "address", "pincode",
+    "city", "state", "description", "avatar"];
+
+  /**
+   * Save the signed-in user's own profile. The local cache is only updated
+   * after the server confirms, so a rejected edit never leaves the screen
+   * showing a value the database does not hold.
+   */
+  function updateMyProfile(patch) {
+    var me = currentUser();
+    if (!me || !me.id) return Promise.reject(new Error("Not signed in"));
+    if (!patch || typeof patch !== "object") return Promise.reject(new Error("Nothing to save"));
+
+    var body = {};
+    SELF_EDITABLE.forEach(function (k) {
+      if (Object.prototype.hasOwnProperty.call(patch, k)) body[k] = patch[k];
+    });
+    if (!Object.keys(body).length) return Promise.resolve(me);
+
+    return window.FoodLink.API.update("users", me.id, body).then(function (saved) {
+      if (saved) {
+        var list = Users.all().slice();
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].id === me.id) { list[i] = Object.assign({}, list[i], saved); break; }
+        }
+        set(KEYS.users, list);
+        if (serverSnapshots.users) serverSnapshots.users[me.id] = clone(saved);
+      }
+      return currentUser();
+    });
   }
 
   /* ---------------- points / badges ---------------- */
 
   var TIERS = [
-    { key: "bronze", name: "Bronze", emoji: "🥉", color: "#b07a4a", min: 0 },
-    { key: "silver", name: "Silver", emoji: "🥈", color: "#9aa4ad", min: 100 },
-    { key: "gold", name: "Gold", emoji: "🥇", color: "#f59e0b", min: 300 },
-    { key: "diamond", name: "Diamond", emoji: "💎", color: "#22d3ee", min: 600 }
+    { key: "bronze", name: "Bronze", emoji: "ðŸ¥‰", color: "#b07a4a", min: 0 },
+    { key: "silver", name: "Silver", emoji: "ðŸ¥ˆ", color: "#9aa4ad", min: 100 },
+    { key: "gold", name: "Gold", emoji: "ðŸ¥‡", color: "#f59e0b", min: 300 },
+    { key: "diamond", name: "Diamond", emoji: "ðŸ’Ž", color: "#22d3ee", min: 600 }
   ];
 
   function tierFor(points) {
@@ -194,27 +508,54 @@ window.FoodLink = window.FoodLink || {};
   }
 
   function addPoints(userId, amount) {
-    var u = Users.byId(userId);
-    if (!u) return;
-    u.points = (u.points || 0) + amount;
-    if (!u.badges) u.badges = [];
-    var tier = tierFor(u.points);
-    if (u.badges.indexOf(tier.key) === -1) {
-      u.badges.push(tier.key);
-      addNotification(userId, "New badge unlocked: " + tier.name + " tier!", "success");
+    var delta = Number(amount);
+    if (!userId || !isFinite(delta) || delta === 0) return 0;
+
+    // Mutate the array we actually persist. `Users.byId()` returns a
+    // detached copy, so saving a freshly re-read list would discard the
+    // increment entirely.
+    var list = Users.all();
+    var u = null;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === userId) { u = list[i]; break; }
     }
-    Users.save(Users.all());
+    if (!u) return 0;
+
+    var before = Number(u.points) || 0;
+    u.points = Math.max(0, before + delta);
+    if (!Array.isArray(u.badges)) u.badges = [];
+
+    // Award every tier the user has now reached, so a large jump never
+    // skips straight to the top tier. Bronze (min 0) is the baseline and
+    // is never announced as an unlock.
+    var unlocked = [];
+    for (var t = 0; t < TIERS.length; t++) {
+      var tier = TIERS[t];
+      if (tier.min > 0 && u.points >= tier.min && u.badges.indexOf(tier.key) === -1) {
+        u.badges.push(tier.key);
+        unlocked.push(tier);
+      }
+    }
+    if (!u.badges.length) u.badges.push(TIERS[0].key);
+
+    Users.save(list);
+
+    for (var j = 0; j < unlocked.length; j++) {
+      addNotification(userId, "New badge unlocked: " + unlocked[j].name + " tier!", "success");
+    }
+    return u.points;
   }
 
   /* ---------------- notifications ---------------- */
 
   function addNotification(userId, message, type) {
+    var kind = (type === "success" || type === "warning" || type === "error" || type === "info") ? type : "info";
     var n = {
       id: uid("n"),
       userId: userId,
-      title: (type === "success" ? "Great news" : type === "warning" ? "Heads up" : "Update"),
-      message: message,
-      type: type || "info",
+      title: (kind === "success" ? "Great news" : kind === "warning" ? "Heads up" : kind === "error" ? "Action needed" : "Update"),
+      message: String(message == null ? "" : message),
+      type: kind,
       read: false,
       createdAt: Date.now()
     };
@@ -224,8 +565,10 @@ window.FoodLink = window.FoodLink || {};
 
   function notificationsFor(userId) {
     return Notifications.all()
-      .filter(function (n) { return n.userId === userId; })
-      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+      .filter(function (n) { return n && n.userId === userId; })
+      // Fall back to 0 so records missing createdAt never produce a NaN
+      // comparator, which would leave the order engine-defined.
+      .sort(function (a, b) { return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0); });
   }
 
   function markAllRead(userId) {
@@ -241,8 +584,19 @@ window.FoodLink = window.FoodLink || {};
   }
 
   function toggleFavorite(receiverId, donationId) {
-    var existing = Favorites.find(function (f) { return f.receiverId === receiverId && f.donationId === donationId; });
-    if (existing) { Favorites.remove(existing.id); return false; }
+    if (!receiverId || !donationId) return false;
+    // Remove every duplicate so repeated toggles cannot leave orphans.
+    var list = Favorites.all();
+    var matches = list.filter(function (f) {
+      return f && f.receiverId === receiverId && f.donationId === donationId;
+    });
+    if (matches.length) {
+      var keep = list.filter(function (f) {
+        return !f || (f.receiverId !== receiverId || f.donationId !== donationId);
+      });
+      Favorites.save(keep);
+      return false;
+    }
     Favorites.add({ receiverId: receiverId, donationId: donationId, createdAt: Date.now() });
     return true;
   }
@@ -250,8 +604,17 @@ window.FoodLink = window.FoodLink || {};
   /* ---------------- donation helpers ---------------- */
 
   function donationStatus(d) {
-    if (d.status === "available" && d.expiresAt < Date.now()) return "expired";
-    return d.status;
+    if (!d) return "unknown";
+    var exp = Number(d.expiresAt);
+    var hasExpiry = isFinite(exp) && exp > 0;
+    if (!hasExpiry) return d.status || "available";
+    // Anything still in flight past its deadline is unusable, not just
+    // "available" - otherwise expired food stays reservable and collectable.
+    if (d.expiresAt < Date.now() &&
+        (d.status === "available" || d.status === "reserved")) {
+      return "expired";
+    }
+    return d.status || "available";
   }
 
   function donorById(id) {
@@ -274,70 +637,70 @@ window.FoodLink = window.FoodLink || {};
     var users = [
       {
         id: "u_admin", role: "admin", name: "Aarav Mehta", email: "admin@foodlink.app",
-        phone: "9000000001", password: "admin123", orgName: "FoodLink HQ",
+        phone: "9000000001", orgName: "FoodLink HQ",
         city: "Delhi", state: "Delhi", address: "10 Cyber Hub, Gurugram", pincode: "122002",
         description: "Platform administrator", status: "approved", verified: true,
         points: 0, badges: [], joinedAt: daysAgo(220), avatar: null
       },
       {
         id: "u_d1", role: "donor", name: "Rahul Sharma", email: "rahul@foodlink.app",
-        phone: "9810000011", password: "donor123", orgName: "Spice Garden", type: "Restaurant",
+        phone: "9810000011", orgName: "Spice Garden", type: "Restaurant",
         city: "Delhi", state: "Delhi", address: "21, Hauz Khas Village", pincode: "110016",
         description: "North Indian family restaurant, 80 seats", status: "approved", verified: true,
         points: 340, badges: ["bronze", "silver", "gold"], joinedAt: daysAgo(180), avatar: null
       },
       {
         id: "u_d2", role: "donor", name: "Priya Verma", email: "priya@foodlink.app",
-        phone: "9810000022", password: "donor123", orgName: "Grand Palace Hotel", type: "Hotel",
+        phone: "9810000022", orgName: "Grand Palace Hotel", type: "Hotel",
         city: "Mumbai", state: "Maharashtra", address: "45, Linking Road, Bandra West", pincode: "400050",
         description: "Full service hotel with buffet banquets", status: "approved", verified: true,
         points: 210, badges: ["bronze", "silver"], joinedAt: daysAgo(150), avatar: null
       },
       {
         id: "u_d3", role: "donor", name: "Amit Patel", email: "amit@foodlink.app",
-        phone: "9810000033", password: "donor123", orgName: "Brew & Beans", type: "Cafe",
+        phone: "9810000033", orgName: "Brew & Beans", type: "Cafe",
         city: "Bengaluru", state: "Karnataka", address: "88, Indiranagar 100 Ft Road", pincode: "560038",
         description: "Specialty coffee cafe with bakery section", status: "approved", verified: true,
         points: 90, badges: ["bronze"], joinedAt: daysAgo(90), avatar: null
       },
       {
         id: "u_d4", role: "donor", name: "Sunita Rao", email: "sunita@foodlink.app",
-        phone: "9810000044", password: "donor123", orgName: "Sunita Rao", type: "Household",
+        phone: "9810000044", orgName: "Sunita Rao", type: "Household",
         city: "Pune", state: "Maharashtra", address: "33, FC Road, Shivajinagar", pincode: "411005",
         description: "Home cook, surplus from family functions", status: "approved", verified: true,
         points: 60, badges: ["bronze"], joinedAt: daysAgo(40), avatar: null
       },
       {
         id: "u_d5", role: "donor", name: "Karan Malhotra", email: "karan@foodlink.app",
-        phone: "9810000055", password: "donor123", orgName: "Sweet Symphony Bakery", type: "Bakery",
+        phone: "9810000055", orgName: "Sweet Symphony Bakery", type: "Bakery",
         city: "Kolkata", state: "West Bengal", address: "12, Park Street", pincode: "700016",
         description: "Bakery, cakes and breads", status: "pending", verified: false,
         points: 0, badges: [], joinedAt: daysAgo(2), avatar: null
       },
       {
         id: "u_r1", role: "receiver", name: "Neha Gupta", email: "neha@foodlink.app",
-        phone: "9811000011", password: "receiver123", orgName: "Feed the Future", type: "NGO",
+        phone: "9811000011", orgName: "Feed the Future", type: "NGO",
         city: "Delhi", state: "Delhi", address: "14, Lajpat Nagar II", pincode: "110024",
         description: "Community kitchen serving 400 meals a day", status: "approved", verified: true,
         points: 180, badges: ["bronze", "silver"], joinedAt: daysAgo(170), avatar: null
       },
       {
         id: "u_r2", role: "receiver", name: "Fr. Joseph D'Souza", email: "joseph@foodlink.app",
-        phone: "9811000022", password: "receiver123", orgName: "Hope Home", type: "Orphanage",
+        phone: "9811000022", orgName: "Hope Home", type: "Orphanage",
         city: "Mumbai", state: "Maharashtra", address: "8, Dharavi Main Road", pincode: "400017",
         description: "Home for 60 children, needs 3 meals daily", status: "approved", verified: true,
         points: 120, badges: ["bronze", "silver"], joinedAt: daysAgo(160), avatar: null
       },
       {
         id: "u_r3", role: "receiver", name: "Meera Iyer", email: "meera@foodlink.app",
-        phone: "9811000033", password: "receiver123", orgName: "Snehashray", type: "Old Age Home",
+        phone: "9811000033", orgName: "Snehashray", type: "Old Age Home",
         city: "Bengaluru", state: "Karnataka", address: "22, Jayanagar 4th Block", pincode: "560011",
         description: "Shelter for 45 senior citizens", status: "approved", verified: true,
         points: 90, badges: ["bronze"], joinedAt: daysAgo(120), avatar: null
       },
       {
         id: "u_r4", role: "receiver", name: "Asha Deshmukh", email: "asha@foodlink.app",
-        phone: "9811000044", password: "receiver123", orgName: "Anna Seva Kitchen", type: "Community Kitchen",
+        phone: "9811000044", orgName: "Anna Seva Kitchen", type: "Community Kitchen",
         city: "Pune", state: "Maharashtra", address: "5, Shivaji Nagar", pincode: "411005",
         description: "Daily free kitchen for students and workers", status: "pending", verified: false,
         points: 0, badges: [], joinedAt: daysAgo(1), avatar: null
@@ -524,12 +887,56 @@ window.FoodLink = window.FoodLink || {};
     set(KEYS.seeded, true);
   }
 
+  /* Demo data is seeded with absolute epoch timestamps, so every "available"
+     listing expires a few hours after the first visit and the app is left
+     with nothing to browse. When every remaining listing has lapsed, shift
+     the whole expiry window forward so the demo stays usable, preserving
+     the original spread between records. */
+  var LAST_REFRESH_KEY = "fl_demo_refreshed";
+
+  function refreshDemoFreshness() {
+    var list = Donations.all();
+    if (!list.length) return false;
+
+    var live = list.filter(function (d) {
+      return d && d.status === "available" && Number(d.expiresAt) > Date.now();
+    });
+    if (live.length) return false;
+
+    // Don't rebase more than once a day.
+    var last = Number(get(LAST_REFRESH_KEY, 0)) || 0;
+    if (last && Date.now() - last < DAY) return false;
+
+    var now = Date.now();
+    var fresh = [];
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i];
+      if (!d || d.status === "completed" || d.status === "cancelled") { fresh.push(d); continue; }
+      // Re-open lapsed records on a rolling schedule so the demo always
+      // has something reservable, staggered rather than all at once.
+      var offset = (i % 6) * 2 + 1;
+      d.expiresAt = now + offset * HOUR;
+      d.preparedAt = now - ((i % 4) + 1) * HOUR;
+      if (d.status === "expired") d.status = "available";
+      d.updatedAt = now;
+      fresh.push(d);
+    }
+    Donations.save(fresh);
+    set(LAST_REFRESH_KEY, now);
+    return true;
+  }
+
   function resetAll() {
     remove(KEYS.users); remove(KEYS.donations); remove(KEYS.requests);
     remove(KEYS.notifications); remove(KEYS.favorites); remove(KEYS.feedback);
     remove(KEYS.contacts); remove(KEYS.settings); remove(KEYS.session);
-    remove(KEYS.seeded); remove(KEYS.theme);
+    remove(KEYS.seeded); remove(KEYS.theme); remove(KEYS.lang); remove(KEYS.customizer);
+    remove(LAST_REFRESH_KEY);
     seed();
+    // Push the reseeded state so the next bootstrap cannot restore the
+    // previous server contents over the top of the reset.
+    SERVER_KEYS.forEach(function (k) { if (k !== "settings") pushCollection(KEYS[k]); });
+    pushCollection(KEYS.settings);
   }
 
   /* ---------------- user preferences (theme / language / customizer) ---------------- */
@@ -555,6 +962,7 @@ window.FoodLink = window.FoodLink || {};
     daysAgo: daysAgo,
     init: init,
     seed: seed,
+    refreshDemoFreshness: refreshDemoFreshness,
     resetAll: resetAll,
     getLang: getLang,
     setLang: setLang,
@@ -573,12 +981,25 @@ window.FoodLink = window.FoodLink || {};
     saveSettings: function (patch) {
       var s = Object.assign({}, DEFAULT_SETTINGS, get(KEYS.settings, {}), patch);
       set(KEYS.settings, s);
+      // Without this the change lived only in localStorage and was
+      // overwritten by the next bootstrap; the admin UI claimed it was live.
+      pushCollection(KEYS.settings);
       return s;
     },
+    onSyncError: function (fn) { onSyncError = typeof fn === "function" ? fn : null; },
+    syncState: syncState,
     currentUser: currentUser,
+    completeLogin: completeLogin,
+    updateMyProfile: updateMyProfile,
     requireRole: requireRole,
     setSession: function (userId) { set(KEYS.session, userId); },
-    clearSession: function () { remove(KEYS.session); },
+    clearSession: function () {
+      remove(KEYS.session);
+      // Dropping the token too, otherwise a sign-out leaves a live credential
+      // in localStorage that any script on the page could replay.
+      if (window.FoodLink && window.FoodLink.API) window.FoodLink.API.logout();
+    },
+
     addNotification: addNotification,
     notificationsFor: notificationsFor,
     markAllRead: markAllRead,

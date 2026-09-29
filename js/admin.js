@@ -71,13 +71,20 @@
     var donations = S.Donations.all();
     var requests = S.Requests.all();
     var contacts = S.Contacts.all();
-    var donors = users.filter(function (u) { return u.role === "donor"; }).length;
-    var receivers = users.filter(function (u) { return u.role === "receiver"; }).length;
-    var pending = users.filter(function (u) { return u.status === "pending"; }).length;
-    var meals = donations.reduce(function (s, d) { return s + (d.servings || 0); }, 0);
-    var kg = donations.reduce(function (s, d) { return s + (d.quantity || 0); }, 0);
+    // Pending users were counted in both their role bucket and "Pending",
+    // so the donut centre total exceeded the real user count.
+    var pending = users.filter(function (u) { return u && u.status === "pending"; }).length;
+    var approvedUsers = users.filter(function (u) { return u && u.status !== "pending"; });
+    var donors = approvedUsers.filter(function (u) { return u.role === "donor"; }).length;
+    var receivers = approvedUsers.filter(function (u) { return u.role === "receiver"; }).length;
+    // "Meals listed" must count only what actually reached someone, not
+    // expired and cancelled records.
+    var meals = donations.filter(function (d) { return S.donationStatus(d) === "completed"; })
+      .reduce(function (s, d) { return s + (Number(d.servings) || 0); }, 0);
+    var kg = donations.filter(function (d) { return S.donationStatus(d) === "completed"; })
+      .reduce(function (s, d) { return s + (Number(d.quantity) || 0); }, 0);
     var active = donations.filter(function (d) { return S.donationStatus(d) === "available"; }).length;
-    var openReq = requests.filter(function (r) { return r.status === "open"; }).length;
+    var openReq = requests.filter(function (r) { return r && r.status === "open"; }).length;
 
     var stats = document.getElementById("overviewStats");
     if (stats) {
@@ -208,22 +215,25 @@
         list.map(function (u) {
           var pill = STATUS_PILL[u.status] || "pill-cancelled";
           var actions = "";
+          // Ids reach an attribute context unescaped, which is a
+          // breakout vector for any record carrying a crafted id.
+          var uid = esc(u.id);
           if (u.status === "pending") {
-            actions = '<button class="btn btn-ghost btn-sm" data-approve="' + u.id + '">Approve</button>' +
-                      '<button class="btn btn-ghost btn-sm" data-reject="' + u.id + '">Reject</button>';
+            actions = '<button class="btn btn-ghost btn-sm" data-approve="' + uid + '">Approve</button>' +
+                      '<button class="btn btn-ghost btn-sm" data-reject="' + uid + '">Reject</button>';
           } else {
-            actions = '<button class="btn btn-ghost btn-sm" data-verify="' + u.id + '">' + (u.verified ? "Unverify" : "Verify") + "</button>";
+            actions = '<button class="btn btn-ghost btn-sm" data-verify="' + uid + '">' + (u.verified ? "Unverify" : "Verify") + "</button>";
           }
-          actions += '<button class="btn btn-ghost btn-sm" data-udel="' + u.id + '">Delete</button>';
+          actions += '<button class="btn btn-ghost btn-sm" data-udel="' + uid + '">Delete</button>';
           return (
             "<tr>" +
               "<td>" + UI.avatarHtml(u.orgName || u.name, "sm") +
                 '<span class="cell-strong" style="margin-left:8px">' + esc(u.orgName || u.name) + "</span><br>" +
                 '<span class="cell-muted" style="margin-left:48px">' + esc(u.email || "") + "</span></td>" +
-              '<td>' + esc(u.role) + (u.verified ? " ✓" : "") + "</td>" +
+              '<td>' + esc(u.role) + (u.verified ? " \u2713" : "") + "</td>" +
               '<td class="cell-muted">' + esc(u.city || "") + "</td>" +
               '<td><span class="pill ' + pill + '">' + esc(u.status) + "</span></td>" +
-              '<td class="cell-muted">' + UI.formatDate(u.joinedAt) + "</td>" +
+              '<td class="cell-muted">' + esc(UI.formatDate(u.joinedAt)) + "</td>" +
               '<td><div class="table-actions">' + actions + "</div></td>" +
             "</tr>"
           );
@@ -253,7 +263,10 @@
         var u = S.Users.byId(b.dataset.verify);
         if (!u) return;
         S.Users.update(u.id, { verified: !u.verified });
-        UI.toast("Verification updated", u.orgName + " is now " + (!u.verified ? "verified" : "not verified") + ".", "success");
+        // orgName is absent on some receivers, which rendered the literal
+        // string "undefined is now verified."
+        var label = u.orgName || u.name || "This account";
+        UI.toast("Verification updated", label + " is now " + (!u.verified ? "verified" : "not verified") + ".", "success");
         renderUsers();
       });
     });
