@@ -1,0 +1,11 @@
+[db] Connected to MongoDB -> foodlink
+[seed] User: skipped (12 existing)
+[seed] Donation: skipped (12 existing)
+[seed] Request: skipped (3 existing)
+[seed] Notification: skipped (11 existing)
+[seed] Favorite: skipped (2 existing)
+[seed] Feedback: skipped (3 existing)
+[seed] Contact: skipped (1 existing)
+[seed] Setting: skipped (1 existing)
+[seed] Done.
+FoodLink server running at http://localhost:4000
