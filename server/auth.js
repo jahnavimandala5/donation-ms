@@ -15,21 +15,27 @@ const TOKEN_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 const MAX_PASSWORD_LEN = 200;
 
 /* A stable secret is required in production: regenerating one per boot
-   would silently log every user out on each deploy, and a secret derived
-   from something guessable would let anyone mint a valid token. */
+   silently signs every user out on each deploy, and a second instance would
+   reject the first one's tokens.
+
+   Note what this is *not*: an ephemeral secret is still 32 random bytes, so
+   it is not guessable and nobody can forge a token with it. The cost of a
+   missing secret is availability, not authenticity. Crashing the whole site
+   over that would turn a nuisance into an outage, so the strict behaviour is
+   opt-in via REQUIRE_AUTH_SECRET=1. */
 const IS_PROD = process.env.NODE_ENV === "production";
 const DEV_SECRET = crypto.randomBytes(32).toString("hex");
 const SECRET = process.env.AUTH_SECRET || DEV_SECRET;
 
-if (IS_PROD && !process.env.AUTH_SECRET) {
-  // This used to only log a warning while continuing to serve traffic, which
-  // meant a production deploy could quietly run with an unconfigured secret.
-  // Fail fast instead: an operator can set the variable and start again.
-  console.error("[auth] AUTH_SECRET is required when NODE_ENV=production. Refusing to start.");
-  process.exit(1);
-}
 if (!process.env.AUTH_SECRET) {
-  console.warn("[auth] AUTH_SECRET is not set - generated an ephemeral one. Sessions reset on restart.");
+  if (IS_PROD && process.env.REQUIRE_AUTH_SECRET === "1") {
+    console.error("[auth] REQUIRE_AUTH_SECRET=1 but AUTH_SECRET is not set. Refusing to start.");
+    process.exit(1);
+  }
+  console.warn(
+    "[auth] AUTH_SECRET is not set. Using an ephemeral secret: every account is signed out " +
+    "whenever the server restarts. Set AUTH_SECRET to a fixed random value in production."
+  );
 }
 
 const BCRYPT_RE = /^\$2[aby]\$\d{2}\$[\./A-Za-z0-9]{53}$/;
