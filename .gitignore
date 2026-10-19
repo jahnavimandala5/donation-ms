@@ -18,10 +18,5 @@ Thumbs.db
 .idea/
 .vscode/
 
-# One-off data-recovery scripts from a specific incident. They rewrite
-# records based on hard-coded ids from that event and can lock accounts out,
-# so they stay local rather than becoming part of the deployable project.
-server/scripts/repair-users.js
-server/scripts/repair-projections.js
-server/scripts/restore-credentials.js
+# Local scratch files
 server/scripts/*.tmp.js
