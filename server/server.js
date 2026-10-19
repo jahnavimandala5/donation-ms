@@ -164,9 +164,15 @@ function app_init() {
   a.use(
     express.static(ROOT, {
       etag: true,
-      maxAge: IS_PROD ? "1h" : 0,
+      maxAge: 0,
       setHeaders(res, filePath) {
-        if (/\.html$/.test(filePath)) res.setHeader("Cache-Control", "no-cache");
+        // Nothing here is content-hashed, so a long max-age means a browser
+        // keeps running the previous deploy's scripts for the whole window,
+        // and a fix ships to the server without ever reaching the user.
+        // Revalidate instead: the ETag turns an unchanged file into a cheap
+        // 304, and a changed one is picked up on the next load.
+        res.setHeader("Cache-Control", "no-cache");
+        void filePath;
       }
     })
   );
