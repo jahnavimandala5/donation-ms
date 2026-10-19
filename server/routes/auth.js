@@ -3,6 +3,8 @@
  *
  *   POST /api/auth/register  -> create an account, returns a token
  *   POST /api/auth/login     -> verify credentials, returns a token
+ *   POST /api/auth/password  -> the owner changes their own password
+ *   POST /api/auth/admin/reset-password -> an admin sets any account's password
  *   GET  /api/auth/me        -> the signed-in user's own record
  *
  * The password never leaves this module: every response body is built from
@@ -203,6 +205,51 @@ router.get("/me", auth.requireAuth, async (req, res, next) => {
 /** Minimal liveness probe for the client's sign-in state. */
 router.get("/session", auth.requireAuth, (req, res) => {
   res.json({ ok: true, id: req.user.id, role: req.user.role });
+});
+
+/* The owner changing their own password. The current password is required so
+   a stolen token alone cannot be used to lock the real owner out. */
+router.post("/password", auth.requireAuth, async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const current = String(body.currentPassword == null ? "" : body.currentPassword);
+    const password = String(body.password == null ? "" : body.password);
+
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+    if (Buffer.byteLength(password, "utf8") > 72) return res.status(400).json({ error: "Password must be 72 bytes or fewer" });
+
+    const user = await models.User.findOne({ id: req.user.id }, "id password", { lean: true });
+    if (!user) return res.status(404).json({ error: "Account not found" });
+
+    const result = auth.verifyPassword(current, user.password);
+    if (!result.ok) return res.status(403).json({ error: "Current password is incorrect" });
+
+    await models.User.updateOne({ id: user.id }, { $set: { password: auth.hashPassword(password) } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+/* Administrative reset, for accounts that have no hash a login can match -
+   records created before passwords were hashed, or damaged ones. There is no
+   self-service email reset, so without this an admin has no way to restore
+   access, and the account is stranded for good. */
+router.post("/admin/reset-password", auth.requireAuth, auth.requireRole("admin"), async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const email = cleanStr(body.email, 160).toLowerCase();
+    const id = cleanStr(body.id, 80);
+    const password = String(body.password == null ? "" : body.password);
+
+    if (!email && !id) return res.status(400).json({ error: "Provide the account email or id" });
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+    if (Buffer.byteLength(password, "utf8") > 72) return res.status(400).json({ error: "Password must be 72 bytes or fewer" });
+
+    const user = await models.User.findOne(id ? { id } : { email }, "id email role", { lean: true });
+    if (!user) return res.status(404).json({ error: "Account not found" });
+
+    await models.User.updateOne({ id: user.id }, { $set: { password: auth.hashPassword(password) } });
+    res.json({ ok: true, id: user.id, email: user.email });
+  } catch (e) { next(e); }
 });
 
 module.exports = { router: router, publicUser: publicUser, USER_PUBLIC_PROJECTION: USER_PUBLIC_PROJECTION, PRIVATE_USER: PRIVATE_USER };
