@@ -108,6 +108,26 @@ window.FoodLink = window.FoodLink || {};
   var syncState = { pending: {}, lastError: null, lastErrorAt: 0, online: true };
   var onSyncError = null;
 
+  /* Per-collection retry timers. A cold start or a deploy makes the backend
+     answer 502/503 for a few seconds; treating that like a rejection would
+     throw away the row the user just created. */
+  var retryTimers = {};
+  var RETRY_BASE = 1000;
+  var RETRY_MAX = 30000;
+
+  /* True when the server was momentarily unable to answer, rather than when
+     it read the request and refused it. 4xx means the request itself is
+     wrong (bad session, not yours, malformed), so replaying it would fail
+     identically; 5xx / 408 / 429 / a dropped connection are worth another
+     try. */
+  function isRetryable(err) {
+    if (!err) return false;
+    if (err.offline) return true;
+    var s = err.status;
+    if (typeof s !== "number") return false;
+    return s >= 500 || s === 408 || s === 429;
+  }
+
   /* The backend no longer accepts wholesale collection replacement from
      ordinary accounts: a full PUT is an administrative operation, and every
      user write is ownership-checked server-side. So the client stops
@@ -149,56 +169,119 @@ window.FoodLink = window.FoodLink || {};
   }
 
   /* Runs one record operation, keeping a single queue per collection so two
-     edits never race. A failure stops the remaining ops for that
-     collection: replaying later writes over an earlier failed one would
-     leave the server in a half-applied state. */
+     edits never race. A permanent failure (the server understood the write
+     and refused it) stops the remaining ops for that collection: replaying
+     later writes over an earlier failed one would leave the server in a
+     half-applied state. A transient failure (cold start, deploy, dropped
+     connection) keeps the ops queued and retries with backoff, so a brief
+     outage cannot silently discard what the user just did. */
   function enqueueOps(name, ops) {
     if (!ops.length) return Promise.resolve(true);
     syncState.pending[name] = true;
-    var q = syncQueues[name] || (syncQueues[name] = { running: false, queued: null });
+    var q = syncQueues[name] || (syncQueues[name] = { running: false, queued: null, attempt: 0 });
     q.queued = q.queued ? q.queued.concat(ops) : ops;
     if (q.running) return Promise.resolve(true);
     q.running = true;
+    pumpQueue(name);
+    return Promise.resolve(true);
+  }
 
+  function clearRetry(name) {
+    if (retryTimers[name]) { clearTimeout(retryTimers[name]); delete retryTimers[name]; }
+  }
+
+  /* Back off per collection, capped, and reset the counter once the batch
+     lands. The cap keeps a long outage to one attempt per 30s per
+     collection instead of a request storm. */
+  function scheduleRetry(name) {
+    if (retryTimers[name]) return;
+    var q = syncQueues[name];
+    if (!q) return;
+    var delay = Math.min(RETRY_BASE * Math.pow(2, q.attempt || 0), RETRY_MAX);
+    q.attempt = (q.attempt || 0) + 1;
+    retryTimers[name] = setTimeout(function () {
+      delete retryTimers[name];
+      var qq = syncQueues[name];
+      if (!qq || qq.running || !qq.queued || !qq.queued.length) return;
+      qq.running = true;
+      pumpQueue(name);
+    }, delay);
+  }
+
+  function pumpQueue(name) {
     var API = window.FoodLink.API;
+    var q = syncQueues[name];
+    if (!q || !API || !API.add) return;
+    var batch = q.queued;
+    q.queued = null;
+    if (!batch || !batch.length) {
+      q.running = false;
+      clearRetry(name);
+      delete syncState.pending[name];
+      return;
+    }
 
-    function pump() {
-      var batch = q.queued;
-      q.queued = null;
-      if (!batch || !batch.length) { q.running = false; delete syncState.pending[name]; return; }
+    function step(i) {
+      if (i >= batch.length) {
+        noteSyncOk();
+        q.running = false;
+        q.attempt = 0;
+        clearRetry(name);
+        delete syncState.pending[name];
+        if (q.queued && q.queued.length) { q.running = true; pumpQueue(name); }
+        return;
+      }
+      var op = batch[i];
+      var p;
+      if (op.kind === "post") p = API.add(name, op.doc);
+      else if (op.kind === "patch") p = API.update(name, op.id, op.patch);
+      else p = API.del(name, op.id);
 
-      function step(i) {
-        if (i >= batch.length) {
-          noteSyncOk();
+      p.then(function (saved) {
+        if (op.kind === "post" && saved && saved.id && serverSnapshots[name]) {
+          serverSnapshots[name][saved.id] = clone(saved);
+        }
+        step(i + 1);
+      })["catch"](function (err) {
+        if (isRetryable(err)) {
+          // The server could not answer. Keep this op and everything behind
+          // it - including any edits that arrived while the batch was in
+          // flight - and try again shortly.
+          var remaining = batch.slice(i);
+          q.queued = q.queued ? remaining.concat(q.queued) : remaining;
           q.running = false;
-          delete syncState.pending[name];
-          if (q.queued && q.queued.length) { q.running = true; pump(); }
+          noteSyncError(name, (err && err.message) || String(err));
+          scheduleRetry(name);
           return;
         }
-        var op = batch[i];
-        var p;
-        if (op.kind === "post") p = API.add(name, op.doc);
-        else if (op.kind === "patch") p = API.update(name, op.id, op.patch);
-        else p = API.del(name, op.id);
-
-        p.then(function (saved) {
-          if (op.kind === "post" && saved && saved.id && serverSnapshots[name]) {
-            serverSnapshots[name][saved.id] = clone(saved);
-          }
-          step(i + 1);
-        })["catch"](function (err) {
-          // 401/403 here means the session or the role no longer allows the
-          // write. Retrying would fail identically, so the queue is dropped.
-          delete syncState.pending[name];
-          q.running = false;
-          q.queued = null;
-          noteSyncError(name, (err && err.message) || String(err));
-        });
-      }
-      step(0);
+        // The server refused the write (401/403/404/422...). Retrying would
+        // fail identically, so drop the queue and surface the reason.
+        delete syncState.pending[name];
+        q.running = false;
+        q.queued = null;
+        q.attempt = 0;
+        clearRetry(name);
+        noteSyncError(name, (err && err.message) || String(err));
+      });
     }
-    pump();
-    return Promise.resolve(true);
+    step(0);
+  }
+
+  /* Coming back online is the strongest signal that a transient failure is
+     over, so flush every parked queue immediately instead of waiting out
+     the backoff. */
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("online", function () {
+      Object.keys(syncQueues).forEach(function (name) {
+        var q = syncQueues[name];
+        if (q && !q.running && q.queued && q.queued.length) {
+          clearRetry(name);
+          q.attempt = 0;
+          q.running = true;
+          pumpQueue(name);
+        }
+      });
+    });
   }
 
   function rowsEqual(a, b) {

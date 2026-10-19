@@ -119,7 +119,9 @@ window.FoodLink = window.FoodLink || {};
       }).then(function (r) {
         if (!r.ok) {
           fallbackBlockedUntil = Date.now() + 30000;
-          throw new Error("API " + method + " " + path + " -> " + r.status);
+          var fe = new Error("API " + method + " " + path + " -> " + r.status);
+          fe.status = r.status;
+          throw fe;
         }
         return r.json();
       }, function () {
