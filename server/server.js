@@ -41,15 +41,19 @@ function securityHeaders(req, res, next) {
 
   if (IS_PROD) {
     // The app ships no inline event handlers, but it does use inline
-    // <style> blocks, so 'unsafe-inline' is required for style-src.
+    // <style> blocks, so 'unsafe-inline' is required for style-src. Every
+    // page also pulls Inter and Poppins from Google Fonts, which means the
+    // stylesheet host (fonts.googleapis.com) and the file host
+    // (fonts.gstatic.com) have to be allowed explicitly or the @font-face
+    // requests are blocked.
     res.setHeader(
       "Content-Security-Policy",
       [
         "default-src 'self'",
         "script-src 'self'",
-        "style-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: https:",
-        "font-src 'self' data:",
+        "font-src 'self' data: https://fonts.gstatic.com",
         "connect-src 'self' https://donation-ms-58do.onrender.com",
         "form-action 'self'",
         "frame-ancestors 'self'",
