@@ -426,6 +426,7 @@ var API = window.FoodLink.API;
         roleOptionHtml("admin", "🛡️", "Admin", "Manage platform") +
       "</div>" +
       '<form id="loginForm" novalidate>' +
+        '<div class="form-error" id="loginError" role="alert" aria-live="assertive" hidden></div>' +
         '<div class="form-field"><label>Email</label><input type="email" name="email" placeholder="you@example.com" data-rule="email" autocomplete="email"><small class="field-msg"></small></div>' +
         '<div class="form-field"><label>Password</label><div class="password-wrap"><input type="password" name="password" placeholder="••••••••" data-rule="text" autocomplete="current-password"><button type="button" class="password-toggle" data-toggle-pw><svg class="icon"><use href="#i-eye"/></svg></button></div><small class="field-msg"></small></div>' +
         '<button type="submit" class="btn btn-primary btn-block btn-lg">Login</button>' +
@@ -453,15 +454,26 @@ var API = window.FoodLink.API;
     });
     var form = m.querySelector("#loginForm");
     V.attachLiveValidation(form);
+    // Sign-in errors belong on the form, not only in a toast that a user can
+    // miss - especially "incorrect email or password", which is the whole
+    // reason a sign-in attempt failed.
+    var loginErrorBox = form.querySelector("#loginError");
+    function showLoginError(msg) {
+      if (!loginErrorBox) return;
+      loginErrorBox.textContent = msg || "";
+      loginErrorBox.hidden = !msg;
+    }
+    form.addEventListener("input", function () { showLoginError(""); });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
-      if (!V.validateForm(form)) { toast("Missing details", "Please fill your email and password.", "error"); return; }
+      showLoginError("");
+      if (!V.validateForm(form)) { showLoginError("Please fill in your email and password."); return; }
       var email = form.querySelector('[name="email"]').value.trim().toLowerCase();
       var pass = form.querySelector('[name="password"]').value;
       // Credentials are verified by the server, which holds the only copy
       // of the password hash. Comparing against the locally cached user
       // would mean keeping plaintext in the browser.
-      submitLogin(email, pass, form);
+      submitLogin(email, pass, form, showLoginError);
     });
     m.querySelectorAll("[data-demo]").forEach(function (b) {
       b.addEventListener("click", function () {
@@ -473,10 +485,10 @@ var API = window.FoodLink.API;
         var c = creds[b.dataset.demo];
         if (!c) return;
         if (selectedRole && selectedRole !== b.dataset.demo) {
-          toast("Wrong account type", "That demo account is a " + b.dataset.demo + ".", "warning");
+          showLoginError("That demo account is a " + b.dataset.demo + ". Choose that type and try again.");
           return;
         }
-        submitLogin(c.e, c.p, form);
+        submitLogin(c.e, c.p, form, showLoginError);
       });
     });
     m.querySelectorAll("[data-open-forgot]").forEach(function (a) {
@@ -506,10 +518,14 @@ var API = window.FoodLink.API;
    * session. Buttons are disabled for the duration so a slow network cannot
    * fire two sign-in requests.
    */
-  function submitLogin(email, password, form) {
+  function submitLogin(email, password, form, onError) {
     var btn = form ? form.querySelector('[type="submit"]') : null;
     if (btn) btn.disabled = true;
     if (form) form.setAttribute("aria-busy", "true");
+    function report(msg) {
+      if (typeof onError === "function") onError(msg);
+      else toast("Login failed", msg, "error");
+    }
 
     return API.login(email, password).then(function (res) {
       var user = res && res.user;
@@ -532,19 +548,19 @@ var API = window.FoodLink.API;
     })["catch"](function (err) {
       var msg = String((err && err.message) || "");
       if (msg.indexOf("wrongRole:") === 0) {
-        toast("Wrong account type", "This account is registered as a " + msg.slice(9) + ".", "warning");
+        report("This account is registered as a " + msg.slice(9) + ". Choose that type and try again.");
       } else if (msg === "pending") {
-        toast("Account pending approval", "An admin must verify your account first.", "warning");
+        report("Your account is awaiting admin approval.");
       } else if (msg === "rejected") {
-        toast("Account rejected", "Please contact support for help.", "error");
+        report("This account was rejected. Please contact support.");
       } else if (err && err.status === 401) {
-        toast("Login failed", "Incorrect email or password.", "error");
+        report("Incorrect email or password.");
       } else if (err && err.status === 429) {
-        toast("Too many attempts", "Please wait a few minutes and try again.", "warning");
+        report("Too many attempts. Please wait a few minutes and try again.");
       } else {
         // The backend is the only place credentials can be checked, so an
         // unreachable server is a real failure, not something to bypass.
-        toast("Cannot reach the server", "Sign-in needs the FoodLink API. Check your connection and try again.", "error");
+        report("Cannot reach the server. Check your connection and try again.");
       }
     }).then(function () {
       if (btn) btn.disabled = false;
@@ -586,6 +602,7 @@ var API = window.FoodLink.API;
         roleOptionHtml("receiver", "🤲", "Receiver", "NGO, shelter, orphanage…") +
       "</div>" +
       '<form id="registerForm" novalidate>' +
+        '<div class="form-error" id="registerError" role="alert" aria-live="assertive" hidden></div>' +
         '<div class="form-field" data-rolefield="donor" style="display:none"><label>Business Type</label>' +
           '<select name="donorType" data-rule="select">' + optionsHtml(DONOR_TYPES) + "</select><small class='field-msg'></small></div>" +
         '<div class="form-field" data-rolefield="receiver" style="display:none"><label>Receiver Type</label>' +
@@ -635,21 +652,46 @@ var API = window.FoodLink.API;
     var form = m.querySelector("#registerForm");
     V.attachLiveValidation(form);
     var submitting = false;
+
+    /* Registration failures are shown on the form itself, not only as a
+       toast: a message that belongs to a field goes next to that field, and
+       anything else (no account type chosen, server unreachable) goes in the
+       banner at the top of the form. */
+    var errorBox = form.querySelector("#registerError");
+    function showFormError(msg) {
+      if (!errorBox) return;
+      errorBox.textContent = msg || "";
+      errorBox.hidden = !msg;
+    }
+    function markFieldError(name, msg) {
+      var input = form.querySelector('[name="' + name + '"]');
+      if (!input) return false;
+      V.mark(input, false, msg);
+      try { input.focus(); } catch (e) { /* detached */ }
+      return true;
+    }
+    // Clear the banner as soon as the user starts fixing things.
+    form.addEventListener("input", function () { showFormError(""); });
+
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       if (submitting) return;
-      if (!selectedRole) { toast("Choose an account type", "Select Donor, Receiver or Admin.", "error"); return; }
+      showFormError("");
+      if (!selectedRole) { showFormError("Choose an account type: Donor or Receiver."); return; }
       var f = new FormData(form);
       var pass = String(f.get("password") || "");
-      if (pass.length < 8) { toast("Weak password", "Password must be at least 8 characters.", "error"); return; }
-      if (pass !== f.get("confirm")) { toast("Passwords don't match", "Please re-enter the same password.", "error"); return; }
+      if (pass.length < 8) { markFieldError("password", "Password must be at least 8 characters."); return; }
+      if (pass !== f.get("confirm")) { markFieldError("confirm", "Passwords don't match."); return; }
       // Admin is not offered for self-registration, so a client that
       // forges the request must be refused server-side of the UI too.
       if (!isSelfServiceRole(selectedRole)) {
-        toast("Not available", "That account type cannot be self-registered.", "error");
+        showFormError("That account type cannot be self-registered.");
         return;
       }
-      if (!V.validateForm(form)) { toast("Please check the form", "Fix the highlighted fields and try again.", "error"); return; }
+      if (!V.validateForm(form)) {
+        showFormError("Please fix the highlighted fields and try again.");
+        return;
+      }
       submitting = true;
       var btn = form.querySelector('button[type="submit"]');
       if (btn) { btn.disabled = true; btn.textContent = "Creating account…"; }
@@ -682,10 +724,24 @@ var API = window.FoodLink.API;
         toast("Account created!", "Welcome to FoodLink.", "success");
         finishLogin(user);
       })["catch"](function (err) {
-        if (err && err.status === 409) toast("Email already registered", "Try logging in instead.", "error");
-        else if (err && err.status === 400) toast("Cannot create account", (err && err.message) || "Check the details and try again.", "error");
-        else if (err && err.status === 429) toast("Too many attempts", "Please wait a few minutes and try again.", "warning");
-        else toast("Cannot reach the server", "Registration needs the FoodLink API. Check your connection and try again.", "error");
+        // Put the server's verdict on the field it belongs to where we can
+        // tell; otherwise surface it in the banner above the form.
+        var msg = (err && err.message) || "";
+        var status = err && err.status;
+        if (status === 409) {
+          markFieldError("email", "That email is already registered. Try logging in instead.");
+        } else if (status === 400) {
+          var field = /password/i.test(msg) ? "password"
+            : /email/i.test(msg) ? "email"
+            : /name|organization/i.test(msg) ? "orgName" : null;
+          if (!field || !markFieldError(field, msg)) {
+            showFormError(msg || "Check the details and try again.");
+          }
+        } else if (status === 429) {
+          showFormError("Too many sign-up attempts. Please wait a few minutes and try again.");
+        } else {
+          showFormError("Cannot reach the server. Check your connection and try again.");
+        }
       }).then(function () {
         submitting = false;
         if (btn) { btn.disabled = false; btn.textContent = "Create account"; }
