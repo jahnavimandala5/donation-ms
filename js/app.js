@@ -126,20 +126,28 @@ var API = window.FoodLink.API;
     function countType(t) {
       return receivers.filter(function (u) { return u.type === t; }).length;
     }
-    // Scale the demo counters against the live dataset so the numbers stay
-    // internally consistent as records are added or removed.
-    var scale = Math.max(1, donations.length / 12);
+    // Every headline number is a direct count of stored records. Nothing is
+    // scaled or padded with demo constants, so the page can never claim more
+    // impact than the database actually contains.
+    var servedReceiverIds = {};
+    delivered.forEach(function (d) {
+      if (d.reservedBy) servedReceiverIds[d.reservedBy] = true;
+    });
+
+    // Documented estimate: 3.4 kg CO2e avoided per kg of food rescued. Shown
+    // in the UI with an "(est.)" label so it is never mistaken for a measure.
+    var CO2_PER_KG = 3.4;
 
     var mins = {
       mealsSaved: meals,
       foodDonated: Math.round(kg),
-      peopleHelped: Math.round(meals * 0.82),
-      ngos: Math.max(receivers.length, Math.round(328 * scale)),
-      restaurants: Math.max(donors.length, Math.round(420 * scale)),
-      oldAgeHomes: countType("Old Age Home") || Math.round(185 * scale),
-      orphanages: countType("Orphanage") || Math.round(210 * scale),
-      volunteers: Math.max(all.length, Math.round(1845 * scale)),
-      co2Saved: Math.round(kg * 3.4)
+      peopleHelped: Object.keys(servedReceiverIds).length,
+      ngos: receivers.length,
+      restaurants: donors.filter(function (u) { return u.type === "Restaurant"; }).length,
+      oldAgeHomes: countType("Old Age Home"),
+      orphanages: countType("Orphanage"),
+      volunteers: all.filter(function (u) { return u && u.role === "volunteer"; }).length,
+      co2Saved: Math.round(kg * CO2_PER_KG)
     };
 
     var mini = document.getElementById("miniTodayMeals");
