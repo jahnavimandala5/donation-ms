@@ -15,16 +15,32 @@ const mongoose = require("mongoose");
  * slot. Models keep the default ObjectId so `create()`/`save()` work, and
  * the API layer projects it away on every read and drops it on every write.
  */
-function makeModel(name) {
+function makeModel(name, configure) {
   const schema = new mongoose.Schema(
     { id: { type: String, required: true, unique: true } },
     { versionKey: false, strict: false }
   );
+  if (configure) configure(schema);
   return mongoose.model(name, schema);
 }
 
 module.exports = {
-  User: makeModel("User"),
+  // Email is the login key, so it must be unique. The partial filter skips
+  // records with no usable email (legacy imports), which would otherwise
+  // collide on null. Without this, two documents could share an email and
+  // login's findOne() would verify against whichever one Mongo returned
+  // first - a correct password could still produce a 401.
+  User: makeModel("User", (schema) => {
+    schema.index(
+      { email: 1 },
+      {
+        unique: true,
+        name: "uniq_user_email",
+        partialFilterExpression: { email: { $type: "string", $gt: "" } }
+      }
+    );
+    schema.index({ role: 1, status: 1 }, { name: "user_role_status" });
+  }),
   Donation: makeModel("Donation"),
   Request: makeModel("Request"),
   Notification: makeModel("Notification"),
